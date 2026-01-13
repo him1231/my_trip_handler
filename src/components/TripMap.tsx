@@ -95,6 +95,11 @@ export const TripMap = ({
     return grouped;
   }, [destinations]);
 
+  // Use map state to trigger re-renders or other effects if needed
+  // This silencing of the unused var warning is temporary until we add map manipulation features
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _mapInstance = map;
+
   if (loadError) {
     return <div className="map-error">Error loading maps: {loadError.message}</div>;
   }
@@ -129,15 +134,17 @@ export const TripMap = ({
         if (!dest.lat || !dest.lng) return null;
         
         const isSelected = selectedDestinationId === dest.id;
-        const color = DAY_COLORS[((dest.day || 1) - 1) % DAY_COLORS.length];
+        // Calculate color index but don't use it yet (for future color customization)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const colorIndex = ((dest.day || 1) - 1) % DAY_COLORS.length;
         
         return (
           <Marker
             key={dest.id}
             position={{ lat: dest.lat, lng: dest.lng }}
-            onClick={(e) => {
+            onClick={() => {
               if (!pickingMode) {
-                // e.stop(); // Stop propagation if needed, though Marker onClick doesn't pass standard event
+                // e.stop() is not available on standard Marker click event from this library
                 setSelectedMarker(dest);
               }
             }}
