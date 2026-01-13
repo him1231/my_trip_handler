@@ -21,7 +21,16 @@ export const AddDestinationForm = ({
   const [day, setDay] = useState(1);
   const [notes, setNotes] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
+  const [duration, setDuration] = useState('');
   const [useSearch, setUseSearch] = useState(true);
+
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const [hours, mins] = startTime.split(':').map(Number);
+    const totalMins = hours * 60 + mins + durationMinutes;
+    const endHours = Math.floor(totalMins / 60) % 24;
+    const endMins = totalMins % 60;
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
 
   const handlePlaceSelect = (place: {
     name: string;
@@ -42,6 +51,8 @@ export const AddDestinationForm = ({
     
     if (!name.trim()) return;
 
+    const durationMins = duration ? parseInt(duration) : undefined;
+    
     onAdd({
       name: name.trim(),
       address: address.trim() || undefined,
@@ -51,6 +62,10 @@ export const AddDestinationForm = ({
       day,
       notes: notes.trim() || undefined,
       arrivalTime: arrivalTime || undefined,
+      duration: durationMins,
+      departureTime: arrivalTime && durationMins 
+        ? calculateEndTime(arrivalTime, durationMins)
+        : undefined,
     });
 
     // Reset form
@@ -62,6 +77,7 @@ export const AddDestinationForm = ({
     setDay(1);
     setNotes('');
     setArrivalTime('');
+    setDuration('');
   };
 
   return (
@@ -158,7 +174,35 @@ export const AddDestinationForm = ({
               onChange={(e) => setArrivalTime(e.target.value)}
             />
           </div>
+
+          <div className="form-group">
+            <label htmlFor="dest-duration">Duration</label>
+            <select
+              id="dest-duration"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            >
+              <option value="">No duration</option>
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+              <option value="180">3 hours</option>
+              <option value="240">4 hours</option>
+              <option value="300">5 hours</option>
+              <option value="360">6 hours</option>
+              <option value="480">8 hours</option>
+            </select>
+          </div>
         </div>
+        
+        {arrivalTime && duration && (
+          <p className="calculated-departure-info">
+            📅 Departure time: {calculateEndTime(arrivalTime, parseInt(duration))}
+          </p>
+        )}
 
         <div className="form-group">
           <label htmlFor="dest-notes">Notes</label>

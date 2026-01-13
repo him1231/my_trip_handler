@@ -3423,3 +3423,215 @@
 .export-btn:hover {
   transform: translateY(-1px);
 }
+
+/* =================================
+   TIME SCHEDULING COMPONENTS
+   ================================= */
+
+/* Destination Order Badge */
+.destination-order {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e94560, #c13b52);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Schedule Display */
+.destination-schedule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  padding-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.schedule-time,
+.schedule-duration {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.schedule-time .time-icon,
+.schedule-duration .duration-icon {
+  opacity: 0.7;
+}
+
+.schedule-time.arrival .time-value {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.schedule-time.departure .time-value {
+  color: #2196f3;
+}
+
+.schedule-duration .duration-value {
+  color: #ff9800;
+  font-weight: 500;
+}
+
+.destination-card.has-schedule {
+  border-left: 3px solid #e94560;
+}
+
+/* Schedule Info in Expanded Card */
+.schedule-info {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.schedule-timeline {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.timeline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.timeline-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.timeline-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e94560;
+}
+
+/* Edit Form Time Inputs */
+.destination-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.edit-section h5 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.time-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.time-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.time-input-group label {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.time-input-group input,
+.time-input-group select {
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.time-input-group input:focus,
+.time-input-group select:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.calculated-departure {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #4caf50;
+}
+
+.calculated-departure-info {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: rgba(76, 175, 80, 0.1);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #4caf50;
+}
+
+/* Form row with 3 columns */
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 1rem;
+}
+
+/* Light theme */
+@media (prefers-color-scheme: light) {
+  .destination-order {
+    background: linear-gradient(135deg, #764ba2, #667eea);
+  }
+  
+  .schedule-time,
+  .schedule-duration {
+    background: rgba(0, 0, 0, 0.05);
+  }
+  
+  .destination-card.has-schedule {
+    border-left-color: #764ba2;
+  }
+  
+  .timeline-value {
+    color: #764ba2;
+  }
+  
+  .time-input-group input,
+  .time-input-group select {
+    background: #f5f5f5;
+    border-color: #e0e0e0;
+    color: #333;
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .destination-schedule {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+  
+  .schedule-time,
+  .schedule-duration {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+  }
+  
+  .time-inputs {
+    grid-template-columns: 1fr;
+  }
+  
+  .schedule-timeline {
+    gap: 1rem;
+  }
+}

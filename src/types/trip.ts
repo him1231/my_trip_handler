@@ -10,8 +10,9 @@ export interface TripDestination {
   day: number;
   order: number;
   notes?: string;
-  arrivalTime?: string;
-  departureTime?: string;
+  arrivalTime?: string;      // HH:mm format
+  departureTime?: string;    // HH:mm format
+  duration?: number;         // Duration in minutes
 }
 
 export interface TripExpense {
