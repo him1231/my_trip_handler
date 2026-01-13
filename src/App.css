@@ -2497,3 +2497,144 @@
     color: #764ba2;
   }
 }
+
+/* =================================
+   PLACE SEARCH COMPONENTS
+   ================================= */
+
+.place-search-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+}
+
+.place-search-input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.place-search-input::placeholder {
+  color: #666;
+}
+
+.search-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-mode-toggle .toggle-btn {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.selected-place {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(233, 69, 96, 0.1);
+  border: 1px solid rgba(233, 69, 96, 0.3);
+  border-radius: 8px;
+}
+
+.selected-place strong {
+  color: white;
+  font-size: 1rem;
+}
+
+.selected-place p {
+  margin: 0.25rem 0 0;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.selected-place .coordinates {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #4285f4;
+}
+
+/* Google Places Autocomplete Dropdown Styling */
+.pac-container {
+  background: #1a1a2e !important;
+  border: 1px solid #0f3460 !important;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  font-family: inherit;
+  z-index: 10000;
+}
+
+.pac-item {
+  padding: 0.75rem !important;
+  color: white !important;
+  border-top: 1px solid #0f3460 !important;
+  cursor: pointer;
+}
+
+.pac-item:hover {
+  background: rgba(233, 69, 96, 0.2) !important;
+}
+
+.pac-item-query {
+  color: white !important;
+  font-size: 1rem !important;
+}
+
+.pac-matched {
+  color: #e94560 !important;
+  font-weight: 600;
+}
+
+.pac-icon {
+  filter: brightness(2);
+}
+
+/* Light theme */
+@media (prefers-color-scheme: light) {
+  .place-search-input {
+    background: #f5f5f5;
+    border-color: #e0e0e0;
+    color: #333;
+  }
+  
+  .selected-place {
+    background: rgba(118, 75, 162, 0.1);
+    border-color: rgba(118, 75, 162, 0.3);
+  }
+  
+  .selected-place strong {
+    color: #333;
+  }
+  
+  .pac-container {
+    background: white !important;
+    border-color: #e0e0e0 !important;
+  }
+  
+  .pac-item {
+    color: #333 !important;
+    border-top-color: #e0e0e0 !important;
+  }
+  
+  .pac-item:hover {
+    background: rgba(118, 75, 162, 0.1) !important;
+  }
+  
+  .pac-item-query {
+    color: #333 !important;
+  }
+  
+  .pac-matched {
+    color: #764ba2 !important;
+  }
+  
+  .pac-icon {
+    filter: none;
+  }
+}

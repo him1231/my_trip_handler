@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { TripDestination } from '../types/trip';
+import { PlaceSearch } from './PlaceSearch';
 
 interface AddDestinationFormProps {
   totalDays: number;
@@ -14,9 +15,27 @@ export const AddDestinationForm = ({
 }: AddDestinationFormProps) => {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [placeId, setPlaceId] = useState<string | undefined>();
+  const [lat, setLat] = useState<number | undefined>();
+  const [lng, setLng] = useState<number | undefined>();
   const [day, setDay] = useState(1);
   const [notes, setNotes] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
+  const [useSearch, setUseSearch] = useState(true);
+
+  const handlePlaceSelect = (place: {
+    name: string;
+    address: string;
+    placeId: string;
+    lat: number;
+    lng: number;
+  }) => {
+    setName(place.name);
+    setAddress(place.address);
+    setPlaceId(place.placeId);
+    setLat(place.lat);
+    setLng(place.lng);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +45,9 @@ export const AddDestinationForm = ({
     onAdd({
       name: name.trim(),
       address: address.trim() || undefined,
+      placeId,
+      lat,
+      lng,
       day,
       notes: notes.trim() || undefined,
       arrivalTime: arrivalTime || undefined,
@@ -34,6 +56,9 @@ export const AddDestinationForm = ({
     // Reset form
     setName('');
     setAddress('');
+    setPlaceId(undefined);
+    setLat(undefined);
+    setLng(undefined);
     setDay(1);
     setNotes('');
     setArrivalTime('');
@@ -43,29 +68,70 @@ export const AddDestinationForm = ({
     <div className="add-destination-form card">
       <h3>Add Destination</h3>
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="dest-name">Name *</label>
-          <input
-            id="dest-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Tokyo Tower, Central Park"
-            required
-            autoFocus
-          />
+        {/* Search Mode Toggle */}
+        <div className="search-mode-toggle">
+          <button
+            type="button"
+            className={`toggle-btn ${useSearch ? 'active' : ''}`}
+            onClick={() => setUseSearch(true)}
+          >
+            🔍 Search Places
+          </button>
+          <button
+            type="button"
+            className={`toggle-btn ${!useSearch ? 'active' : ''}`}
+            onClick={() => setUseSearch(false)}
+          >
+            ✏️ Manual Entry
+          </button>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="dest-address">Address</label>
-          <input
-            id="dest-address"
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="e.g., 4 Chome-2-8 Shibakoen, Tokyo"
-          />
-        </div>
+        {useSearch ? (
+          <div className="form-group">
+            <label>Search for a place</label>
+            <PlaceSearch
+              onPlaceSelect={handlePlaceSelect}
+              placeholder="Search restaurants, attractions, hotels..."
+            />
+            {name && (
+              <div className="selected-place">
+                <strong>📍 {name}</strong>
+                {address && <p>{address}</p>}
+                {lat && lng && (
+                  <span className="coordinates">
+                    {lat.toFixed(4)}, {lng.toFixed(4)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="form-group">
+              <label htmlFor="dest-name">Name *</label>
+              <input
+                id="dest-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Tokyo Tower, Central Park"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="dest-address">Address</label>
+              <input
+                id="dest-address"
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="e.g., 4 Chome-2-8 Shibakoen, Tokyo"
+              />
+            </div>
+          </>
+        )}
 
         <div className="form-row">
           <div className="form-group">
