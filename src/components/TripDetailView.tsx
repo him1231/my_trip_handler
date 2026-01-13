@@ -344,7 +344,7 @@ export const TripDetailView = ({
           )}
 
           {activeTab === 'map' && (
-            <div className="map-tab" style={{ height: '100%', minHeight: '500px' }}>
+            <div className="map-tab">
               {pickingLocationFor && (
                 <div className="map-picking-banner">
                   <p>Click on the map to set location for selected destination</p>
