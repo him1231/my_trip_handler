@@ -10,6 +10,7 @@ import { ExpenseCard } from './ExpenseCard';
 import { AddExpenseForm } from './AddExpenseForm';
 import { BudgetSummary } from './BudgetSummary';
 import { sortFlights } from '../services/flightService';
+import { exportTripToPdf } from '../services/exportService';
 
 type TabType = 'destinations' | 'flights' | 'budget' | 'map' | 'notes' | 'settings';
 
@@ -594,6 +595,19 @@ export const TripDetailView = ({
                     <span className="info-value">{totalDays} days</span>
                   </div>
                 </div>
+              </div>
+
+              <div className="settings-section">
+                <h3>Export</h3>
+                <p className="settings-description">
+                  Download your trip itinerary as a PDF to print or share offline.
+                </p>
+                <button 
+                  className="btn-primary export-btn"
+                  onClick={() => exportTripToPdf(trip)}
+                >
+                  📄 Export to PDF
+                </button>
               </div>
             </div>
           )}
