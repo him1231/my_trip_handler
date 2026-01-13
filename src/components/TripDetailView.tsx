@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Trip, TripDestination } from '../types/trip';
+import type { Trip, TripDestination, TripExpense } from '../types/trip';
 import type { TripFlight } from '../types/flight';
 import { DestinationCard } from './DestinationCard';
 import { AddDestinationForm } from './AddDestinationForm';
 import { TripMap } from './TripMap';
 import { FlightCard } from './FlightCard';
 import { AddFlightForm } from './AddFlightForm';
+import { ExpenseCard } from './ExpenseCard';
+import { AddExpenseForm } from './AddExpenseForm';
+import { BudgetSummary } from './BudgetSummary';
 import { sortFlights } from '../services/flightService';
 
-type TabType = 'destinations' | 'flights' | 'map' | 'notes' | 'settings';
+type TabType = 'destinations' | 'flights' | 'budget' | 'map' | 'notes' | 'settings';
 
 interface TripDetailViewProps {
   trip: Trip;
@@ -69,6 +72,7 @@ export const TripDetailView = ({
   const [editedName, setEditedName] = useState(initialTrip.name);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddFlightForm, setShowAddFlightForm] = useState(false);
+  const [showAddExpenseForm, setShowAddExpenseForm] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [pickingLocationFor, setPickingLocationFor] = useState<string | null>(null);
   
@@ -173,6 +177,25 @@ export const TripDetailView = ({
     updateTrip({
       flights: (trip.flights || []).filter((f) => f.id !== flightId),
     });
+  };
+
+  // Expense handlers
+  const handleAddExpense = (expense: TripExpense) => {
+    const expenses = [...(trip.expenses || []), expense];
+    // Sort by date
+    expenses.sort((a, b) => a.date.localeCompare(b.date));
+    updateTrip({ expenses });
+    setShowAddExpenseForm(false);
+  };
+
+  const handleDeleteExpense = (expenseId: string) => {
+    updateTrip({
+      expenses: (trip.expenses || []).filter((e) => e.id !== expenseId),
+    });
+  };
+
+  const handleBudgetChange = (budget: number) => {
+    updateTrip({ totalBudget: budget });
   };
 
   const handlePickLocation = (destinationId: string) => {
@@ -284,6 +307,15 @@ export const TripDetailView = ({
             ✈️ Flights
             {(trip.flights?.length || 0) > 0 && (
               <span className="tab-badge">{trip.flights?.length}</span>
+            )}
+          </button>
+          <button
+            className={`tab ${activeTab === 'budget' ? 'active' : ''}`}
+            onClick={() => setActiveTab('budget')}
+          >
+            💰 Budget
+            {(trip.expenses?.length || 0) > 0 && (
+              <span className="tab-badge">{trip.expenses?.length}</span>
             )}
           </button>
           <button
@@ -421,6 +453,62 @@ export const TripDetailView = ({
             </div>
           )}
 
+          {activeTab === 'budget' && (
+            <div className="budget-tab">
+              {/* Budget Input */}
+              <div className="budget-input-section">
+                <label>Trip Budget ({trip.currency})</label>
+                <input
+                  type="number"
+                  value={trip.totalBudget || ''}
+                  onChange={(e) => handleBudgetChange(parseFloat(e.target.value) || 0)}
+                  placeholder="Enter your budget..."
+                  min="0"
+                  step="100"
+                />
+              </div>
+
+              {/* Budget Summary */}
+              <BudgetSummary
+                expenses={trip.expenses || []}
+                totalBudget={trip.totalBudget}
+                currency={trip.currency}
+              />
+
+              {/* Add Expense Button/Form */}
+              {showAddExpenseForm ? (
+                <AddExpenseForm
+                  tripStartDate={trip.startDate}
+                  tripEndDate={trip.endDate}
+                  defaultCurrency={trip.currency}
+                  onAdd={handleAddExpense}
+                  onCancel={() => setShowAddExpenseForm(false)}
+                />
+              ) : (
+                <button
+                  className="add-expense-btn btn-primary"
+                  onClick={() => setShowAddExpenseForm(true)}
+                >
+                  ➕ Add Expense
+                </button>
+              )}
+
+              {/* Expense List */}
+              {(trip.expenses?.length || 0) > 0 && (
+                <div className="expenses-list">
+                  <h4>Expenses</h4>
+                  {[...(trip.expenses || [])].reverse().map((expense) => (
+                    <ExpenseCard
+                      key={expense.id}
+                      expense={expense}
+                      onDelete={handleDeleteExpense}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'map' && (
             <div className="map-tab">
               {pickingLocationFor && (
@@ -496,6 +584,10 @@ export const TripDetailView = ({
                   <div className="info-item">
                     <span className="info-label">Flights</span>
                     <span className="info-value">{trip.flights?.length || 0}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Expenses</span>
+                    <span className="info-value">{trip.expenses?.length || 0}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Duration</span>
