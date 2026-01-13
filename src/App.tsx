@@ -1,10 +1,56 @@
+import { useState } from 'react'
 import './App.css'
 import { useGoogleAuth } from './hooks/useGoogleAuth'
+import { useGoogleDrive } from './hooks/useGoogleDrive'
 import { GoogleSignInButton } from './components/GoogleSignInButton'
 import { UserProfile } from './components/UserProfile'
+import { TripList } from './components/TripList'
+import { CreateTripModal } from './components/CreateTripModal'
+import type { Trip, TripSummary } from './types/trip'
 
 function App() {
-  const { user, loading, error, isAuthenticated, signIn, signOut } = useGoogleAuth()
+  const { 
+    user, 
+    loading: authLoading, 
+    error: authError, 
+    isAuthenticated, 
+    hasDriveAccess,
+    signIn, 
+    signOut 
+  } = useGoogleAuth()
+  
+  const { 
+    trips, 
+    loading: driveLoading, 
+    error: driveError, 
+    initialized,
+    saveTrip, 
+    deleteTrip 
+  } = useGoogleDrive(hasDriveAccess && user?.accessToken ? user.accessToken : null)
+  
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleCreateTrip = async (trip: Trip) => {
+    setSaving(true)
+    try {
+      await saveTrip(trip)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleOpenTrip = (trip: TripSummary) => {
+    // TODO: Navigate to trip detail view
+    console.log('Open trip:', trip)
+    alert(`Trip "${trip.name}" clicked! Trip detail view coming soon.`)
+  }
+
+  const handleDeleteTrip = async (trip: TripSummary) => {
+    await deleteTrip(trip.driveFileId)
+  }
+
+  const error = authError || driveError
 
   return (
     <div className="app">
@@ -14,12 +60,12 @@ function App() {
         
         {/* Auth Section */}
         <div className="auth-section">
-          {loading ? (
+          {authLoading ? (
             <div className="auth-loading">Loading...</div>
           ) : isAuthenticated && user ? (
             <UserProfile user={user} onSignOut={signOut} />
           ) : (
-            <GoogleSignInButton onClick={signIn} loading={loading} />
+            <GoogleSignInButton onClick={signIn} loading={authLoading} />
           )}
         </div>
         
@@ -31,44 +77,45 @@ function App() {
       </header>
       
       <main className="app-main">
-        {isAuthenticated ? (
+        {isAuthenticated && user ? (
           // Authenticated content
           <div className="dashboard">
-            <div className="card welcome-card">
-              <h2>Welcome, {user?.name?.split(' ')[0]}! 👋</h2>
-              <p>You're signed in and ready to plan your trips.</p>
-              {user?.accessToken ? (
-                <p className="token-status success">✓ Connected to Google APIs</p>
-              ) : (
-                <p className="token-status warning">⚠ Click Sign In again to connect to Google APIs</p>
-              )}
-            </div>
-            
-            <section className="features">
-              <h2>What would you like to do?</h2>
-              <div className="feature-grid">
-                <button className="feature-btn" disabled>
-                  <span className="feature-icon">🗺️</span>
-                  <span>View Map</span>
-                  <span className="coming-soon">Coming Soon</span>
-                </button>
-                <button className="feature-btn" disabled>
-                  <span className="feature-icon">➕</span>
-                  <span>New Trip</span>
-                  <span className="coming-soon">Coming Soon</span>
-                </button>
-                <button className="feature-btn" disabled>
-                  <span className="feature-icon">📁</span>
-                  <span>My Trips</span>
-                  <span className="coming-soon">Coming Soon</span>
-                </button>
-                <button className="feature-btn" disabled>
-                  <span className="feature-icon">⚙️</span>
-                  <span>Settings</span>
-                  <span className="coming-soon">Coming Soon</span>
-                </button>
+            {!user.accessToken ? (
+              // No access token - need to sign in again
+              <div className="card reconnect-card">
+                <h2>Reconnect to Google</h2>
+                <p>Your session has expired. Please sign in again to access your trips.</p>
+                <GoogleSignInButton onClick={signIn} loading={authLoading} />
               </div>
-            </section>
+            ) : !hasDriveAccess ? (
+              // Drive access not granted
+              <div className="card reconnect-card">
+                <div className="warning-icon">⚠️</div>
+                <h2>Google Drive Access Required</h2>
+                <p>
+                  To save and sync your trips, you need to grant access to Google Drive.
+                </p>
+                <p className="hint">
+                  Please sign in again and make sure to <strong>check the Google Drive checkbox</strong> in the permissions dialog.
+                </p>
+                <GoogleSignInButton onClick={signIn} loading={authLoading} />
+              </div>
+            ) : !initialized ? (
+              // Initializing Drive
+              <div className="card loading-card">
+                <div className="loading-spinner large" />
+                <p>Connecting to Google Drive...</p>
+              </div>
+            ) : (
+              // Drive connected - show trips
+              <TripList
+                trips={trips}
+                loading={driveLoading}
+                onOpenTrip={handleOpenTrip}
+                onDeleteTrip={handleDeleteTrip}
+                onCreateTrip={() => setShowCreateModal(true)}
+              />
+            )}
           </div>
         ) : (
           // Unauthenticated content
@@ -81,7 +128,7 @@ function App() {
                 <li>🗺️ Plan routes with Google Maps</li>
                 <li>🔄 Sync across all your devices</li>
               </ul>
-              <GoogleSignInButton onClick={signIn} loading={loading} />
+              <GoogleSignInButton onClick={signIn} loading={authLoading} />
             </div>
             
             <section className="features">
@@ -102,6 +149,14 @@ function App() {
       <footer className="app-footer">
         <p>Your data is stored securely in your own Google Drive</p>
       </footer>
+
+      {/* Create Trip Modal */}
+      <CreateTripModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSave={handleCreateTrip}
+        saving={saving}
+      />
     </div>
   )
 }

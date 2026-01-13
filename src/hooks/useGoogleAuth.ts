@@ -3,12 +3,14 @@ import type { GoogleUser, GoogleUserInfo } from '../types/auth';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.file';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 interface UseGoogleAuthReturn {
   user: GoogleUser | null;
   loading: boolean;
   error: Error | null;
   isAuthenticated: boolean;
+  hasDriveAccess: boolean;
   signIn: () => void;
   signOut: () => void;
 }
@@ -17,12 +19,17 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [user, setUser] = useState<GoogleUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [hasDriveAccess, setHasDriveAccess] = useState(false);
   const tokenClientRef = useRef<google.accounts.oauth2.TokenClient | null>(null);
   const isInitializedRef = useRef(false);
 
   // Fetch user info from Google
-  const fetchUserInfo = useCallback(async (accessToken: string, expiresIn: number) => {
+  const fetchUserInfo = useCallback(async (accessToken: string, expiresIn: number, grantedScopes: string) => {
     try {
+      // Check if Drive scope was granted
+      const driveGranted = grantedScopes.includes(DRIVE_SCOPE);
+      setHasDriveAccess(driveGranted);
+
       const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -43,7 +50,13 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
       };
 
       setUser(googleUser);
-      setError(null);
+      
+      // Set error message if Drive access was not granted (but still sign them in)
+      if (!driveGranted) {
+        setError(new Error('Google Drive access not granted. Please sign in again and check the Google Drive checkbox to save your trips.'));
+      } else {
+        setError(null);
+      }
       
       // Store minimal info in sessionStorage for page refresh
       sessionStorage.setItem('gauth_user', JSON.stringify({
@@ -51,6 +64,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
         email: googleUser.email,
         name: googleUser.name,
         picture: googleUser.picture,
+        hasDriveAccess: driveGranted,
       }));
       
       return googleUser;
@@ -77,7 +91,8 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
           }
 
           try {
-            await fetchUserInfo(response.access_token, response.expires_in);
+            // Pass the granted scopes to verify Drive access
+            await fetchUserInfo(response.access_token, response.expires_in, response.scope);
           } catch {
             // Error already set in fetchUserInfo
           } finally {
@@ -120,6 +135,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
           accessToken: '',
           expiresAt: 0,
         });
+        setHasDriveAccess(parsed.hasDriveAccess || false);
       } catch {
         sessionStorage.removeItem('gauth_user');
       }
@@ -138,6 +154,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
     setError(null);
     
     // Request access token - this opens the Google sign-in popup
+    // Using 'consent' to always show the consent screen so user can grant permissions
     tokenClientRef.current.requestAccessToken({ prompt: 'consent' });
   }, []);
 
@@ -151,6 +168,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
     setUser(null);
     setError(null);
+    setHasDriveAccess(false);
     sessionStorage.removeItem('gauth_user');
   }, [user?.accessToken]);
 
@@ -159,6 +177,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
     loading,
     error,
     isAuthenticated: !!user,
+    hasDriveAccess,
     signIn,
     signOut,
   };
