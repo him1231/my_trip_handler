@@ -134,7 +134,6 @@ export const TripMap = ({
         if (!dest.lat || !dest.lng) return null;
         
         const isSelected = selectedDestinationId === dest.id;
-        const color = DAY_COLORS[((dest.day || 1) - 1) % DAY_COLORS.length];
         
         return (
           <Marker
