@@ -41,26 +41,42 @@ function App() {
   const [shareModalTrip, setShareModalTrip] = useState<TripSummary | null>(null)
   
   // URL parameter state
-  const [urlTripId, setUrlTripId] = useState<string | null>(null)
-
-  // Parse URL parameters on mount
-  useEffect(() => {
+  const [urlTripId, setUrlTripId] = useState<string | null>(() => {
+    // Parse URL parameters on initial render
     const params = new URLSearchParams(window.location.search)
-    const tripId = params.get('trip')
-    if (tripId) {
-      setUrlTripId(tripId)
-    }
-  }, [])
+    return params.get('trip')
+  })
+  const [urlTripProcessed, setUrlTripProcessed] = useState(false)
 
   // Load trip from URL parameter when authenticated
   useEffect(() => {
-    if (urlTripId && initialized && user?.accessToken) {
-      handleOpenTripById(urlTripId)
+    const openTripFromUrl = async () => {
+      if (!urlTripId || urlTripProcessed || !initialized || !user?.accessToken) return
+      
+      setUrlTripProcessed(true)
+      console.log('Opening trip from URL:', urlTripId)
+      
+      try {
+        const trip = await loadTrip(urlTripId)
+        if (trip) {
+          console.log('Loaded trip from URL:', trip)
+          alert(`Opened shared trip "${trip.name}"! Trip detail view coming soon.`)
+        } else {
+          alert('Could not load the shared trip. You may not have access.')
+        }
+      } catch (err) {
+        console.error('Failed to load trip:', err)
+        alert('Failed to load trip. Please make sure you have access.')
+      }
+      
       // Clear the URL parameter after loading
-      window.history.replaceState({}, '', window.location.pathname)
+      const basePath = import.meta.env.BASE_URL || '/'
+      window.history.replaceState({}, '', basePath)
       setUrlTripId(null)
     }
-  }, [urlTripId, initialized, user?.accessToken])
+    
+    openTripFromUrl()
+  }, [urlTripId, urlTripProcessed, initialized, user?.accessToken, loadTrip])
 
   // Load shared trips when authenticated with shared access
   const loadSharedTrips = useCallback(async () => {
@@ -90,24 +106,6 @@ function App() {
       await saveTrip(trip)
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleOpenTripById = async (fileId: string) => {
-    if (!user?.accessToken) return
-    
-    try {
-      const trip = await loadTrip(fileId)
-      if (trip) {
-        // TODO: Navigate to trip detail view
-        console.log('Loaded trip from URL:', trip)
-        alert(`Opened shared trip "${trip.name}"! Trip detail view coming soon.`)
-      } else {
-        alert('Could not load the shared trip. You may not have access.')
-      }
-    } catch (err) {
-      console.error('Failed to load trip:', err)
-      alert('Failed to load trip. Please make sure you have access.')
     }
   }
 
