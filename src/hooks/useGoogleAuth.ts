@@ -6,6 +6,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
+const STORAGE_KEY = 'gauth_user';
 
 interface UseGoogleAuthReturn {
   user: GoogleUser | null;
@@ -26,6 +27,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
   const [hasSharedAccess, setHasSharedAccess] = useState(false);
   const tokenClientRef = useRef<google.accounts.oauth2.TokenClient | null>(null);
   const isInitializedRef = useRef(false);
+  const silentRefreshAttemptedRef = useRef(false);
 
   // Fetch user info from Google
   const fetchUserInfo = useCallback(async (accessToken: string, expiresIn: number, grantedScopes: string) => {
@@ -65,8 +67,8 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
         setError(null);
       }
       
-      // Store minimal info in sessionStorage for page refresh
-      sessionStorage.setItem('gauth_user', JSON.stringify({
+      // Store user info in localStorage for persistent login
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
         id: googleUser.id,
         email: googleUser.email,
         name: googleUser.name,
@@ -83,6 +85,17 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
     }
   }, []);
 
+  // Try silent token refresh (no popup)
+  const trySilentRefresh = useCallback(() => {
+    if (!tokenClientRef.current || silentRefreshAttemptedRef.current) return;
+    
+    silentRefreshAttemptedRef.current = true;
+    console.log('Attempting silent token refresh...');
+    
+    // Request token without prompt - will succeed if user previously consented
+    tokenClientRef.current.requestAccessToken({ prompt: '' });
+  }, []);
+
   // Initialize the token client
   const initializeClient = useCallback(() => {
     if (!window.google || isInitializedRef.current) return;
@@ -93,6 +106,17 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
         scope: SCOPES,
         callback: async (response) => {
           if (response.error) {
+            // Silent refresh failed - this is expected if user hasn't consented before
+            // or if the session expired
+            console.log('Token request failed:', response.error);
+            
+            // Clear cached user if silent refresh failed
+            if (silentRefreshAttemptedRef.current) {
+              // Don't show error for silent refresh failures
+              setLoading(false);
+              return;
+            }
+            
             setError(new Error(response.error_description || response.error));
             setLoading(false);
             return;
@@ -101,6 +125,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
           try {
             // Pass the granted scopes to verify Drive access
             await fetchUserInfo(response.access_token, response.expires_in, response.scope);
+            console.log('Token refresh successful');
           } catch {
             // Error already set in fetchUserInfo
           } finally {
@@ -108,18 +133,45 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
           }
         },
         error_callback: (err) => {
-          setError(new Error(err.message || 'OAuth error'));
+          console.log('OAuth error:', err.message);
+          // Don't show error for silent refresh failures
+          if (!silentRefreshAttemptedRef.current) {
+            setError(new Error(err.message || 'OAuth error'));
+          }
           setLoading(false);
         },
       });
 
       isInitializedRef.current = true;
-      setLoading(false);
+      
+      // Check for cached user and attempt silent refresh
+      const cachedUser = localStorage.getItem(STORAGE_KEY);
+      if (cachedUser) {
+        try {
+          const parsed = JSON.parse(cachedUser);
+          // Set user info immediately for better UX (shows profile while refreshing)
+          setUser({
+            ...parsed,
+            accessToken: '',
+            expiresAt: 0,
+          });
+          setHasDriveAccess(parsed.hasDriveAccess || false);
+          setHasSharedAccess(parsed.hasSharedAccess || false);
+          
+          // Try to silently refresh the token
+          trySilentRefresh();
+        } catch {
+          localStorage.removeItem(STORAGE_KEY);
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to initialize Google Auth'));
       setLoading(false);
     }
-  }, [fetchUserInfo]);
+  }, [fetchUserInfo, trySilentRefresh]);
 
   // Wait for Google Identity Services to load
   useEffect(() => {
@@ -132,24 +184,6 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
       }
     };
 
-    // Check for cached user (minimal info only)
-    const cachedUser = sessionStorage.getItem('gauth_user');
-    if (cachedUser) {
-      try {
-        const parsed = JSON.parse(cachedUser);
-        // Note: We don't have the access token, so user needs to re-auth for API calls
-        setUser({
-          ...parsed,
-          accessToken: '',
-          expiresAt: 0,
-        });
-        setHasDriveAccess(parsed.hasDriveAccess || false);
-        setHasSharedAccess(parsed.hasSharedAccess || false);
-      } catch {
-        sessionStorage.removeItem('gauth_user');
-      }
-    }
-
     checkGoogle();
   }, [initializeClient]);
 
@@ -161,6 +195,7 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
     setLoading(true);
     setError(null);
+    silentRefreshAttemptedRef.current = false; // Reset for explicit sign in
     
     // Request access token - this opens the Google sign-in popup
     // Using 'consent' to always show the consent screen so user can grant permissions
@@ -179,7 +214,8 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
     setError(null);
     setHasDriveAccess(false);
     setHasSharedAccess(false);
-    sessionStorage.removeItem('gauth_user');
+    silentRefreshAttemptedRef.current = false;
+    localStorage.removeItem(STORAGE_KEY);
   }, [user?.accessToken]);
 
   return {
