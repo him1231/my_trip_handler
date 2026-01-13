@@ -6,7 +6,7 @@
 }
 
 .app-header {
-  padding: 2rem 0;
+  padding: 2rem;
   background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
   border-radius: 16px;
   margin-bottom: 2rem;
@@ -23,14 +23,142 @@
 .app-header p {
   color: #a0a0a0;
   font-size: 1.1rem;
+  margin-bottom: 1.5rem;
 }
 
+/* Auth Section */
+.auth-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 48px;
+}
+
+.auth-loading {
+  color: #a0a0a0;
+  font-size: 0.9rem;
+}
+
+.auth-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(233, 69, 96, 0.2);
+  border: 1px solid #e94560;
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+/* Google Sign In Button */
+.google-signin-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: white;
+  color: #444;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.google-signin-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.google-signin-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  flex-shrink: 0;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e0e0e0;
+  border-top-color: #4285F4;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* User Profile */
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50px;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e94560;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.user-name {
+  color: white;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.user-email {
+  color: #a0a0a0;
+  font-size: 0.8rem;
+}
+
+.signout-btn {
+  padding: 6px 12px;
+  background: rgba(233, 69, 96, 0.2);
+  color: #ff6b6b;
+  border: 1px solid rgba(233, 69, 96, 0.3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.signout-btn:hover {
+  background: rgba(233, 69, 96, 0.3);
+  border-color: #e94560;
+}
+
+/* Main Content */
 .app-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2rem;
   align-items: center;
+}
+
+.dashboard {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .card {
@@ -40,26 +168,101 @@
   border: 1px solid #0f3460;
 }
 
-.card button {
-  font-size: 1.2rem;
-  padding: 1rem 2rem;
-  background: linear-gradient(135deg, #e94560, #ff6b6b);
-  color: white;
-  border: none;
+.welcome-card h2 {
+  color: #e94560;
+  margin-bottom: 0.5rem;
+}
+
+.welcome-card p {
+  color: #a0a0a0;
   margin-bottom: 1rem;
 }
 
-.card button:hover {
-  background: linear-gradient(135deg, #ff6b6b, #e94560);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+.token-status {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin: 0;
 }
 
+.token-status.success {
+  background: rgba(52, 168, 83, 0.2);
+  color: #34a853;
+}
+
+.token-status.warning {
+  background: rgba(251, 188, 5, 0.2);
+  color: #fbbc05;
+}
+
+.benefits-list {
+  list-style: none;
+  text-align: left;
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+.benefits-list li {
+  padding: 0.5rem 0;
+  color: #e0e0e0;
+}
+
+/* Feature Grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.feature-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 1.5rem 1rem;
+  background: rgba(15, 52, 96, 0.5);
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.feature-btn:hover:not(:disabled) {
+  background: rgba(15, 52, 96, 0.8);
+  border-color: #e94560;
+  transform: translateY(-2px);
+}
+
+.feature-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feature-icon {
+  font-size: 2rem;
+}
+
+.coming-soon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.65rem;
+  background: #e94560;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: white;
+}
+
+/* Features Section */
 .features {
   padding: 2rem;
   background: rgba(15, 52, 96, 0.3);
   border-radius: 16px;
-  max-width: 400px;
+  width: 100%;
+  max-width: 500px;
 }
 
 .features h2 {
@@ -70,23 +273,27 @@
 .features ul {
   list-style: none;
   text-align: left;
+  padding: 0;
 }
 
 .features li {
   padding: 0.75rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 1.1rem;
+  color: #e0e0e0;
 }
 
 .features li:last-child {
   border-bottom: none;
 }
 
+/* Footer */
 .app-footer {
   padding: 2rem;
   color: #666;
 }
 
+/* Light mode */
 @media (prefers-color-scheme: light) {
   .app-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -108,11 +315,56 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   }
   
+  .welcome-card p,
+  .benefits-list li,
+  .features li {
+    color: #555;
+  }
+  
   .features {
     background: rgba(102, 126, 234, 0.1);
   }
   
-  .features h2 {
+  .features h2,
+  .welcome-card h2 {
     color: #764ba2;
+  }
+
+  .user-profile {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .user-name {
+    color: white;
+  }
+
+  .feature-btn {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: rgba(102, 126, 234, 0.3);
+    color: #333;
+  }
+
+  .feature-btn:hover:not(:disabled) {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: #764ba2;
+  }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .user-profile {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .user-info {
+    align-items: center;
+    text-align: center;
+  }
+
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
