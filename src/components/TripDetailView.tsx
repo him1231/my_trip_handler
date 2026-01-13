@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Trip, TripDestination } from '../types/trip';
+import type { TripFlight } from '../types/flight';
 import { DestinationCard } from './DestinationCard';
 import { AddDestinationForm } from './AddDestinationForm';
 import { TripMap } from './TripMap';
+import { FlightCard } from './FlightCard';
+import { AddFlightForm } from './AddFlightForm';
+import { sortFlights } from '../services/flightService';
 
-type TabType = 'destinations' | 'map' | 'notes' | 'settings';
+type TabType = 'destinations' | 'flights' | 'map' | 'notes' | 'settings';
 
 interface TripDetailViewProps {
   trip: Trip;
@@ -64,6 +68,7 @@ export const TripDetailView = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(initialTrip.name);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddFlightForm, setShowAddFlightForm] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [pickingLocationFor, setPickingLocationFor] = useState<string | null>(null);
   
@@ -155,6 +160,19 @@ export const TripDetailView = ({
 
   const handleDateChange = (field: 'startDate' | 'endDate', value: string) => {
     updateTrip({ [field]: value });
+  };
+
+  // Flight handlers
+  const handleAddFlight = (flight: TripFlight) => {
+    const flights = [...(trip.flights || []), flight];
+    updateTrip({ flights: sortFlights(flights) });
+    setShowAddFlightForm(false);
+  };
+
+  const handleDeleteFlight = (flightId: string) => {
+    updateTrip({
+      flights: (trip.flights || []).filter((f) => f.id !== flightId),
+    });
   };
 
   const handlePickLocation = (destinationId: string) => {
@@ -260,6 +278,15 @@ export const TripDetailView = ({
             )}
           </button>
           <button
+            className={`tab ${activeTab === 'flights' ? 'active' : ''}`}
+            onClick={() => setActiveTab('flights')}
+          >
+            ✈️ Flights
+            {(trip.flights?.length || 0) > 0 && (
+              <span className="tab-badge">{trip.flights?.length}</span>
+            )}
+          </button>
+          <button
             className={`tab ${activeTab === 'map' ? 'active' : ''}`}
             onClick={() => setActiveTab('map')}
           >
@@ -343,6 +370,57 @@ export const TripDetailView = ({
             </div>
           )}
 
+          {activeTab === 'flights' && (
+            <div className="flights-tab">
+              {(trip.flights?.length || 0) === 0 && !showAddFlightForm ? (
+                <div className="empty-flights">
+                  <div className="empty-icon">✈️</div>
+                  <h3>No flights yet</h3>
+                  <p>Add your flight details to keep track of your travel</p>
+                  <button
+                    className="create-trip-btn primary"
+                    onClick={() => setShowAddFlightForm(true)}
+                  >
+                    ➕ Add Flight
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flights-header">
+                    <h3>Your Flights</h3>
+                    {!showAddFlightForm && (
+                      <button
+                        className="btn-primary small"
+                        onClick={() => setShowAddFlightForm(true)}
+                      >
+                        ➕ Add Flight
+                      </button>
+                    )}
+                  </div>
+
+                  {showAddFlightForm && (
+                    <AddFlightForm
+                      tripStartDate={trip.startDate}
+                      tripEndDate={trip.endDate}
+                      onAdd={handleAddFlight}
+                      onCancel={() => setShowAddFlightForm(false)}
+                    />
+                  )}
+
+                  <div className="flights-list">
+                    {sortFlights(trip.flights || []).map((flight) => (
+                      <FlightCard
+                        key={flight.id}
+                        flight={flight}
+                        onDelete={handleDeleteFlight}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {activeTab === 'map' && (
             <div className="map-tab">
               {pickingLocationFor && (
@@ -414,6 +492,10 @@ export const TripDetailView = ({
                   <div className="info-item">
                     <span className="info-label">Destinations</span>
                     <span className="info-value">{trip.destinations.length}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Flights</span>
+                    <span className="info-value">{trip.flights?.length || 0}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Duration</span>

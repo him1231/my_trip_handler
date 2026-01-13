@@ -1,3 +1,5 @@
+import type { TripFlight } from './flight';
+
 export interface TripDestination {
   id: string;
   name: string;
@@ -30,6 +32,7 @@ export interface Trip {
   startDate: string;
   endDate: string;
   destinations: TripDestination[];
+  flights: TripFlight[];
   expenses: TripExpense[];
   totalBudget?: number;
   currency: string;
@@ -46,6 +49,7 @@ export interface TripSummary {
   startDate: string;
   endDate: string;
   destinationCount: number;
+  flightCount?: number;
   driveFileId: string;
   createdAt?: string;
   updatedAt?: string;
@@ -62,6 +66,7 @@ export const createNewTrip = (name: string, startDate: string, endDate: string):
   startDate,
   endDate,
   destinations: [],
+  flights: [],
   expenses: [],
   currency: 'USD',
   createdAt: new Date().toISOString(),
@@ -77,6 +82,7 @@ export const tripToSummary = (trip: Trip, driveFileId: string): TripSummary => (
   startDate: trip.startDate,
   endDate: trip.endDate,
   destinationCount: trip.destinations.length,
+  flightCount: trip.flights?.length || 0,
   driveFileId,
   createdAt: trip.createdAt,
   updatedAt: trip.updatedAt,

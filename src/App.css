@@ -2001,3 +2001,499 @@
   margin: 0.25rem 0 0;
   font-family: monospace;
 }
+
+/* =================================
+   FLIGHT COMPONENTS
+   ================================= */
+
+/* Flights Tab */
+.flights-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.flights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.empty-flights {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #888;
+}
+
+.empty-flights .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+/* Flight Card */
+.flight-card {
+  background: linear-gradient(145deg, #16213e, #1a1a2e);
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.flight-card:hover {
+  border-color: #e94560;
+  box-shadow: 0 4px 15px rgba(233, 69, 96, 0.2);
+}
+
+.flight-card.departure {
+  border-left: 4px solid #4CAF50;
+}
+
+.flight-card.arrival {
+  border-left: 4px solid #2196F3;
+}
+
+.flight-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.flight-type-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.flight-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.flight-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.flight-info-primary {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.flight-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+}
+
+.flight-number .airline-code {
+  color: #e94560;
+}
+
+.airline-name {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.flight-route {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.airport {
+  text-align: center;
+}
+
+.airport .code {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+}
+
+.airport .label {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.route-arrow {
+  color: #e94560;
+  font-size: 1.25rem;
+}
+
+.flight-time-display {
+  flex: 1;
+  text-align: center;
+}
+
+.flight-time-display .time {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e94560;
+}
+
+.flight-time-display .date {
+  display: block;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.flight-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  font-size: 0.7rem;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.detail-value {
+  font-size: 0.9rem;
+  color: white;
+  font-weight: 600;
+}
+
+.flight-card-notes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.flight-card-actions {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Add Flight Form */
+.add-flight-form {
+  background: linear-gradient(145deg, #16213e, #1a1a2e);
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.add-flight-form h3 {
+  margin: 0 0 1.5rem 0;
+  color: white;
+  font-size: 1.25rem;
+}
+
+.form-row {
+  margin-bottom: 1rem;
+}
+
+.form-row label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.form-row input,
+.form-row textarea,
+.form-row select {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+}
+
+.form-row input:focus,
+.form-row textarea:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.form-row.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-row.two-col > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-row.two-col label {
+  margin-bottom: 0.5rem;
+}
+
+.flight-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-btn.active {
+  background: rgba(233, 69, 96, 0.2);
+  border-color: #e94560;
+  color: white;
+}
+
+.toggle-btn:hover:not(.active) {
+  border-color: #888;
+}
+
+/* Airline Dropdown */
+.airline-dropdown {
+  position: relative;
+}
+
+.airline-search-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+}
+
+.airline-search-input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.airline-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  z-index: 100;
+}
+
+.airline-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.airline-option:hover {
+  background: rgba(233, 69, 96, 0.2);
+}
+
+.airline-iata {
+  font-weight: 700;
+  color: #e94560;
+  min-width: 35px;
+}
+
+.airline-name {
+  flex: 1;
+  color: white;
+}
+
+.airline-country {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.airline-no-results {
+  padding: 1rem;
+  text-align: center;
+  color: #666;
+}
+
+/* Flight Number Input */
+.flight-number-input {
+  display: flex;
+  align-items: center;
+}
+
+.airline-prefix {
+  padding: 0.75rem;
+  background: rgba(233, 69, 96, 0.2);
+  border: 1px solid #0f3460;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: #e94560;
+  font-weight: 700;
+  min-width: 50px;
+  text-align: center;
+}
+
+.flight-number-input input {
+  flex: 1;
+  border-radius: 0 8px 8px 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #0f3460;
+}
+
+.form-actions .btn-primary,
+.form-actions .btn-secondary {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.form-actions .btn-primary {
+  background: linear-gradient(135deg, #e94560, #c13b52);
+  border: none;
+  color: white;
+}
+
+.form-actions .btn-primary:hover {
+  background: linear-gradient(135deg, #f05672, #d4495f);
+}
+
+.form-actions .btn-secondary {
+  background: transparent;
+  border: 1px solid #0f3460;
+  color: #888;
+}
+
+.form-actions .btn-secondary:hover {
+  border-color: #888;
+  color: white;
+}
+
+/* Light theme support */
+@media (prefers-color-scheme: light) {
+  .flight-card {
+    background: white;
+    border-color: #e0e0e0;
+  }
+  
+  .flight-card:hover {
+    border-color: #764ba2;
+    box-shadow: 0 4px 15px rgba(118, 75, 162, 0.2);
+  }
+  
+  .flight-number {
+    color: #333;
+  }
+  
+  .flight-number .airline-code {
+    color: #764ba2;
+  }
+  
+  .flight-route {
+    background: #f5f5f5;
+  }
+  
+  .airport .code {
+    color: #333;
+  }
+  
+  .flight-time-display .time {
+    color: #764ba2;
+  }
+  
+  .detail-value {
+    color: #333;
+  }
+  
+  .add-flight-form {
+    background: white;
+    border-color: #e0e0e0;
+  }
+  
+  .add-flight-form h3 {
+    color: #333;
+  }
+  
+  .form-row input,
+  .form-row textarea,
+  .form-row select {
+    background: #f5f5f5;
+    border-color: #e0e0e0;
+    color: #333;
+  }
+  
+  .toggle-btn.active {
+    background: rgba(118, 75, 162, 0.2);
+    border-color: #764ba2;
+  }
+  
+  .airline-dropdown-list {
+    background: white;
+    border-color: #e0e0e0;
+  }
+  
+  .airline-option:hover {
+    background: rgba(118, 75, 162, 0.1);
+  }
+  
+  .airline-iata {
+    color: #764ba2;
+  }
+  
+  .airline-prefix {
+    background: rgba(118, 75, 162, 0.1);
+    color: #764ba2;
+  }
+}
