@@ -7,6 +7,7 @@ import { UserProfile } from './components/UserProfile'
 import { TripList } from './components/TripList'
 import { CreateTripModal } from './components/CreateTripModal'
 import { ShareModal } from './components/ShareModal'
+import { TripDetailView } from './components/TripDetailView'
 import { getSharedWithMe } from './services/shareService'
 import type { Trip, TripSummary } from './types/trip'
 
@@ -30,6 +31,7 @@ function App() {
     saveTrip, 
     deleteTrip,
     loadTrip,
+    refreshTrips,
   } = useGoogleDrive(hasDriveAccess && user?.accessToken ? user.accessToken : null)
   
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -39,6 +41,11 @@ function App() {
   const [sharedTrips, setSharedTrips] = useState<TripSummary[]>([])
   const [loadingShared, setLoadingShared] = useState(false)
   const [shareModalTrip, setShareModalTrip] = useState<TripSummary | null>(null)
+  
+  // Trip detail view state
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null)
+  const [detailSaving, setDetailSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   
   // URL parameter state
   const [urlTripId, setUrlTripId] = useState<string | null>(() => {
@@ -60,7 +67,7 @@ function App() {
         const trip = await loadTrip(urlTripId)
         if (trip) {
           console.log('Loaded trip from URL:', trip)
-          alert(`Opened shared trip "${trip.name}"! Trip detail view coming soon.`)
+          setSelectedTrip(trip)
         } else {
           alert('Could not load the shared trip. You may not have access.')
         }
@@ -109,10 +116,53 @@ function App() {
     }
   }
 
-  const handleOpenTrip = (trip: TripSummary) => {
-    // TODO: Navigate to trip detail view
-    console.log('Open trip:', trip)
-    alert(`Trip "${trip.name}" clicked! Trip detail view coming soon.`)
+  const handleOpenTrip = async (tripSummary: TripSummary) => {
+    // Load full trip data
+    try {
+      const trip = await loadTrip(tripSummary.driveFileId)
+      if (trip) {
+        setSelectedTrip(trip)
+      } else {
+        alert('Could not load trip data.')
+      }
+    } catch (err) {
+      console.error('Failed to load trip:', err)
+      alert('Failed to load trip.')
+    }
+  }
+
+  const handleCloseDetail = () => {
+    setSelectedTrip(null)
+    setLastSaved(null)
+    // Refresh trips list to get any updates
+    refreshTrips()
+  }
+
+  const handleSaveTrip = async (trip: Trip) => {
+    setDetailSaving(true)
+    try {
+      await saveTrip(trip)
+      setLastSaved(new Date())
+      // Update the selected trip with latest data
+      setSelectedTrip(trip)
+    } catch (err) {
+      console.error('Failed to save trip:', err)
+    } finally {
+      setDetailSaving(false)
+    }
+  }
+
+  const handleShareFromDetail = () => {
+    if (selectedTrip?.driveFileId) {
+      setShareModalTrip({
+        id: selectedTrip.id,
+        name: selectedTrip.name,
+        driveFileId: selectedTrip.driveFileId,
+        startDate: selectedTrip.startDate,
+        endDate: selectedTrip.endDate,
+        destinationCount: selectedTrip.destinations.length,
+      })
+    }
   }
 
   const handleDeleteTrip = async (trip: TripSummary) => {
@@ -124,6 +174,33 @@ function App() {
   }
 
   const error = authError || driveError
+
+  // Show trip detail view if a trip is selected
+  if (selectedTrip) {
+    return (
+      <>
+        <TripDetailView
+          trip={selectedTrip}
+          onClose={handleCloseDetail}
+          onSave={handleSaveTrip}
+          onShare={selectedTrip.driveFileId ? handleShareFromDetail : undefined}
+          isSaving={detailSaving}
+          lastSaved={lastSaved}
+        />
+        
+        {/* Share Modal (can be opened from detail view) */}
+        {shareModalTrip && user?.accessToken && (
+          <ShareModal
+            isOpen={!!shareModalTrip}
+            onClose={() => setShareModalTrip(null)}
+            fileId={shareModalTrip.driveFileId}
+            tripName={shareModalTrip.name}
+            accessToken={user.accessToken}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <div className="app">
