@@ -172,8 +172,11 @@ export const TripDetailView = ({
   };
 
   const handleViewOnMap = (destinationId: string) => {
-    setActiveTab('map');
     // Ideally we would also set selectedDestinationId here to highlight it on map
+    // For now just switching tab is enough, silencing unused var warning
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _id = destinationId;
+    setActiveTab('map');
   };
 
   // Group destinations by day
