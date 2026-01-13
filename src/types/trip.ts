@@ -47,8 +47,12 @@ export interface TripSummary {
   endDate: string;
   destinationCount: number;
   driveFileId: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastModified?: string; // For shared trips
+  owner?: string; // Owner name/email for shared trips
+  sharedBy?: string; // Who shared it with you
+  isShared?: boolean; // True if this is a shared trip
 }
 
 // Helper to create a new trip

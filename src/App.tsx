@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import { useGoogleAuth } from './hooks/useGoogleAuth'
 import { useGoogleDrive } from './hooks/useGoogleDrive'
@@ -6,6 +6,8 @@ import { GoogleSignInButton } from './components/GoogleSignInButton'
 import { UserProfile } from './components/UserProfile'
 import { TripList } from './components/TripList'
 import { CreateTripModal } from './components/CreateTripModal'
+import { ShareModal } from './components/ShareModal'
+import { getSharedWithMe } from './services/shareService'
 import type { Trip, TripSummary } from './types/trip'
 
 function App() {
@@ -15,6 +17,7 @@ function App() {
     error: authError, 
     isAuthenticated, 
     hasDriveAccess,
+    hasSharedAccess,
     signIn, 
     signOut 
   } = useGoogleAuth()
@@ -25,11 +28,77 @@ function App() {
     error: driveError, 
     initialized,
     saveTrip, 
-    deleteTrip 
+    deleteTrip,
+    loadTrip,
   } = useGoogleDrive(hasDriveAccess && user?.accessToken ? user.accessToken : null)
   
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  
+  // Sharing state
+  const [sharedTrips, setSharedTrips] = useState<TripSummary[]>([])
+  const [loadingShared, setLoadingShared] = useState(false)
+  const [shareModalTrip, setShareModalTrip] = useState<TripSummary | null>(null)
+  
+  // URL parameter state
+  const [urlTripId, setUrlTripId] = useState<string | null>(() => {
+    // Parse URL parameters on initial render
+    const params = new URLSearchParams(window.location.search)
+    return params.get('trip')
+  })
+  const [urlTripProcessed, setUrlTripProcessed] = useState(false)
+
+  // Load trip from URL parameter when authenticated
+  useEffect(() => {
+    const openTripFromUrl = async () => {
+      if (!urlTripId || urlTripProcessed || !initialized || !user?.accessToken) return
+      
+      setUrlTripProcessed(true)
+      console.log('Opening trip from URL:', urlTripId)
+      
+      try {
+        const trip = await loadTrip(urlTripId)
+        if (trip) {
+          console.log('Loaded trip from URL:', trip)
+          alert(`Opened shared trip "${trip.name}"! Trip detail view coming soon.`)
+        } else {
+          alert('Could not load the shared trip. You may not have access.')
+        }
+      } catch (err) {
+        console.error('Failed to load trip:', err)
+        alert('Failed to load trip. Please make sure you have access.')
+      }
+      
+      // Clear the URL parameter after loading
+      const basePath = import.meta.env.BASE_URL || '/'
+      window.history.replaceState({}, '', basePath)
+      setUrlTripId(null)
+    }
+    
+    openTripFromUrl()
+  }, [urlTripId, urlTripProcessed, initialized, user?.accessToken, loadTrip])
+
+  // Load shared trips when authenticated with shared access
+  const loadSharedTrips = useCallback(async () => {
+    if (!user?.accessToken || !hasSharedAccess) return
+    
+    setLoadingShared(true)
+    try {
+      const shared = await getSharedWithMe(user.accessToken)
+      setSharedTrips(shared.map(trip => ({ ...trip, isShared: true })))
+    } catch (err) {
+      console.error('Failed to load shared trips:', err)
+    } finally {
+      setLoadingShared(false)
+    }
+  }, [user?.accessToken, hasSharedAccess])
+
+  // Load shared trips when initialized
+  useEffect(() => {
+    if (initialized && hasSharedAccess) {
+      loadSharedTrips()
+    }
+  }, [initialized, hasSharedAccess, loadSharedTrips])
 
   const handleCreateTrip = async (trip: Trip) => {
     setSaving(true)
@@ -48,6 +117,10 @@ function App() {
 
   const handleDeleteTrip = async (trip: TripSummary) => {
     await deleteTrip(trip.driveFileId)
+  }
+
+  const handleShareTrip = (trip: TripSummary) => {
+    setShareModalTrip(trip)
   }
 
   const error = authError || driveError
@@ -96,7 +169,7 @@ function App() {
                   To save and sync your trips, you need to grant access to Google Drive.
                 </p>
                 <p className="hint">
-                  Please sign in again and make sure to <strong>check the Google Drive checkbox</strong> in the permissions dialog.
+                  Please sign in again and make sure to <strong>check all Google Drive checkboxes</strong> in the permissions dialog.
                 </p>
                 <GoogleSignInButton onClick={signIn} loading={authLoading} />
               </div>
@@ -110,10 +183,13 @@ function App() {
               // Drive connected - show trips
               <TripList
                 trips={trips}
+                sharedTrips={sharedTrips}
                 loading={driveLoading}
+                loadingShared={loadingShared}
                 onOpenTrip={handleOpenTrip}
                 onDeleteTrip={handleDeleteTrip}
                 onCreateTrip={() => setShowCreateModal(true)}
+                onShareTrip={handleShareTrip}
               />
             )}
           </div>
@@ -127,6 +203,7 @@ function App() {
                 <li>📁 Save trips to your Google Drive</li>
                 <li>🗺️ Plan routes with Google Maps</li>
                 <li>🔄 Sync across all your devices</li>
+                <li>🤝 Share & collaborate with friends</li>
               </ul>
               <GoogleSignInButton onClick={signIn} loading={authLoading} />
             </div>
@@ -138,8 +215,8 @@ function App() {
                 <li>📁 Save trips to Google Drive</li>
                 <li>📅 Itinerary Planning</li>
                 <li>💰 Budget Tracking</li>
-                <li>🤝 Trip Sharing</li>
-                <li>🤖 AI-Powered Suggestions</li>
+                <li>🤝 Trip Sharing & Collaboration</li>
+                <li>🔄 Real-time sync every 15 seconds</li>
               </ul>
             </section>
           </>
@@ -157,6 +234,17 @@ function App() {
         onSave={handleCreateTrip}
         saving={saving}
       />
+
+      {/* Share Modal */}
+      {shareModalTrip && user?.accessToken && (
+        <ShareModal
+          isOpen={!!shareModalTrip}
+          onClose={() => setShareModalTrip(null)}
+          fileId={shareModalTrip.driveFileId}
+          tripName={shareModalTrip.name}
+          accessToken={user.accessToken}
+        />
+      )}
     </div>
   )
 }
