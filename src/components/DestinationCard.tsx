@@ -5,12 +5,16 @@ interface DestinationCardProps {
   destination: TripDestination;
   onUpdate: (updates: Partial<TripDestination>) => void;
   onDelete: () => void;
+  onPickLocation?: () => void;
+  onViewOnMap?: () => void;
 }
 
 export const DestinationCard = ({
   destination,
   onUpdate,
   onDelete,
+  onPickLocation,
+  onViewOnMap,
 }: DestinationCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,10 +49,14 @@ export const DestinationCard = ({
     return time;
   };
 
+  const hasLocation = destination.lat && destination.lng;
+
   return (
     <div className={`destination-card ${isExpanded ? 'expanded' : ''}`}>
       <div className="destination-card-main" onClick={() => !isEditing && setIsExpanded(!isExpanded)}>
-        <div className="destination-icon">📍</div>
+        <div className="destination-icon">
+          {hasLocation ? '📍' : '⚪'}
+        </div>
         
         <div className="destination-info">
           {isEditing ? (
@@ -75,6 +83,10 @@ export const DestinationCard = ({
             />
           ) : destination.address ? (
             <p className="destination-address">{destination.address}</p>
+          ) : hasLocation ? (
+            <p className="destination-coordinates">
+              {destination.lat?.toFixed(4)}, {destination.lng?.toFixed(4)}
+            </p>
           ) : null}
         </div>
 
@@ -112,6 +124,30 @@ export const DestinationCard = ({
             </>
           ) : (
             <>
+              {!hasLocation && onPickLocation && (
+                <button
+                  className="action-btn map-location"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPickLocation();
+                  }}
+                  title="Set location on map"
+                >
+                  🗺️
+                </button>
+              )}
+              {hasLocation && onViewOnMap && (
+                <button
+                  className="action-btn map-view"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewOnMap();
+                  }}
+                  title="View on map"
+                >
+                  👁️
+                </button>
+              )}
               <button
                 className="action-btn edit"
                 onClick={(e) => {
@@ -151,13 +187,31 @@ export const DestinationCard = ({
                 rows={3}
               />
             </div>
-          ) : destination.notes ? (
-            <div className="destination-notes">
-              <span className="notes-label">Notes:</span>
-              <p>{destination.notes}</p>
-            </div>
           ) : (
-            <p className="no-notes">No notes added</p>
+            <div className="destination-details-content">
+              {destination.notes ? (
+                <div className="destination-notes">
+                  <span className="notes-label">Notes:</span>
+                  <p>{destination.notes}</p>
+                </div>
+              ) : (
+                <p className="no-notes">No notes added</p>
+              )}
+              
+              <div className="destination-location-actions">
+                {!hasLocation && onPickLocation && (
+                  <button 
+                    className="btn-text"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPickLocation();
+                    }}
+                  >
+                    📍 Set location on map
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
