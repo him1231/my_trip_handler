@@ -2638,3 +2638,326 @@
     filter: none;
   }
 }
+
+/* =================================
+   MOBILE RESPONSIVENESS
+   ================================= */
+
+/* Tablet and below (max 768px) */
+@media (max-width: 768px) {
+  /* Main Layout */
+  .app-main {
+    padding: 0.5rem;
+  }
+  
+  .dashboard {
+    padding: 1rem;
+  }
+  
+  /* Cards Grid */
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  /* Trip Cards */
+  .trip-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .trip-card {
+    padding: 1rem;
+  }
+  
+  /* Trip Detail View */
+  .trip-detail {
+    padding: 0 0.5rem;
+  }
+  
+  .trip-detail-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 0.5rem;
+  }
+  
+  .trip-detail-header-left,
+  .trip-detail-header-right {
+    width: 100%;
+  }
+  
+  .trip-detail-header-center {
+    text-align: center;
+  }
+  
+  .trip-detail-title {
+    font-size: 1.5rem;
+  }
+  
+  /* Tabs */
+  .trip-detail-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.25rem;
+    padding: 0 0.5rem;
+  }
+  
+  .trip-detail-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* Destinations */
+  .day-section {
+    padding: 1rem;
+  }
+  
+  .day-header {
+    font-size: 1.1rem;
+  }
+  
+  .destination-card {
+    padding: 0.75rem;
+  }
+  
+  /* Flights */
+  .flight-card {
+    padding: 0.75rem;
+  }
+  
+  .flight-route {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .flight-time-display .time {
+    font-size: 1.25rem;
+  }
+  
+  .flight-card-details {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  /* Forms */
+  .form-row.two-col {
+    grid-template-columns: 1fr;
+  }
+  
+  .add-destination-form,
+  .add-flight-form {
+    padding: 1rem;
+  }
+  
+  /* Map */
+  .map-tab {
+    min-height: 350px;
+  }
+  
+  /* Modals */
+  .share-modal,
+  .create-trip-modal {
+    width: 95%;
+    max-width: none;
+    margin: 1rem;
+    padding: 1rem;
+  }
+  
+  /* Auth Section */
+  .auth-section {
+    padding: 1rem;
+  }
+  
+  .user-profile {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+}
+
+/* Mobile phones (max 480px) */
+@media (max-width: 480px) {
+  /* Typography */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.1rem; }
+  
+  /* Main Layout */
+  .app {
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+  
+  /* Feature grid - single column on small phones */
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .feature-btn {
+    padding: 1rem;
+  }
+  
+  /* Trip Detail */
+  .trip-detail-title {
+    font-size: 1.25rem;
+  }
+  
+  .trip-detail-dates {
+    font-size: 0.85rem;
+  }
+  
+  /* Back button - make it icon only */
+  .back-btn {
+    padding: 0.5rem;
+    min-width: auto;
+  }
+  
+  /* Share button - icon only */
+  .share-btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Tabs - smaller padding */
+  .tab {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  
+  .tab-badge {
+    padding: 0.1rem 0.3rem;
+    font-size: 0.7rem;
+  }
+  
+  /* Destinations */
+  .destination-name {
+    font-size: 1rem;
+  }
+  
+  .destination-actions {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .destination-actions button {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Flights */
+  .flight-number {
+    font-size: 1.25rem;
+  }
+  
+  .flight-card-actions {
+    position: static;
+    margin-top: 0.5rem;
+    justify-content: flex-end;
+  }
+  
+  /* Forms */
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .form-actions button {
+    width: 100%;
+  }
+  
+  /* Airline dropdown */
+  .airline-dropdown-list {
+    max-height: 200px;
+  }
+  
+  .airline-option {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Search toggle */
+  .search-mode-toggle {
+    flex-direction: column;
+  }
+  
+  /* Map */
+  .map-tab {
+    min-height: 300px;
+  }
+  
+  .map-picking-banner {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  /* Footer */
+  .trip-detail-footer {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Notes */
+  .notes-textarea {
+    min-height: 200px;
+  }
+  
+  /* Settings */
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+/* Landscape mode on phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  .trip-detail-header {
+    padding: 0.5rem;
+  }
+  
+  .trip-detail-tabs {
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .map-tab {
+    min-height: 250px;
+  }
+}
+
+/* Safe area insets for notched phones */
+@supports (padding: max(0px)) {
+  .app {
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+  
+  .trip-detail-footer {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Touch-friendly button sizes */
+@media (hover: none) and (pointer: coarse) {
+  button, 
+  .btn-primary, 
+  .btn-secondary,
+  .btn-icon {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .tab {
+    min-height: 44px;
+  }
+  
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
