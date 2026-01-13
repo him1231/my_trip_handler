@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Trip, TripDestination } from '../types/trip';
 import { DestinationCard } from './DestinationCard';
 import { AddDestinationForm } from './AddDestinationForm';
+import { TripMap } from './TripMap';
 
-type TabType = 'destinations' | 'notes' | 'settings';
+type TabType = 'destinations' | 'map' | 'notes' | 'settings';
 
 interface TripDetailViewProps {
   trip: Trip;
@@ -64,6 +65,7 @@ export const TripDetailView = ({
   const [editedName, setEditedName] = useState(initialTrip.name);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [pickingLocationFor, setPickingLocationFor] = useState<string | null>(null);
   
   const saveTimeoutRef = useRef<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -155,6 +157,25 @@ export const TripDetailView = ({
     updateTrip({ [field]: value });
   };
 
+  const handlePickLocation = (destinationId: string) => {
+    setPickingLocationFor(destinationId);
+    setActiveTab('map');
+  };
+
+  const handleLocationSelect = (lat: number, lng: number) => {
+    if (pickingLocationFor) {
+      handleUpdateDestination(pickingLocationFor, { lat, lng });
+      setPickingLocationFor(null);
+      // Optional: switch back to destinations tab or stay on map
+      // setActiveTab('destinations'); 
+    }
+  };
+
+  const handleViewOnMap = (destinationId: string) => {
+    setActiveTab('map');
+    // Ideally we would also set selectedDestinationId here to highlight it on map
+  };
+
   // Group destinations by day
   const destinationsByDay = trip.destinations.reduce((acc, dest) => {
     const day = dest.day || 1;
@@ -237,6 +258,12 @@ export const TripDetailView = ({
             )}
           </button>
           <button
+            className={`tab ${activeTab === 'map' ? 'active' : ''}`}
+            onClick={() => setActiveTab('map')}
+          >
+            🗺️ Map
+          </button>
+          <button
             className={`tab ${activeTab === 'notes' ? 'active' : ''}`}
             onClick={() => setActiveTab('notes')}
           >
@@ -283,6 +310,8 @@ export const TripDetailView = ({
                               handleUpdateDestination(destination.id, updates)
                             }
                             onDelete={() => handleDeleteDestination(destination.id)}
+                            onPickLocation={() => handlePickLocation(destination.id)}
+                            onViewOnMap={() => handleViewOnMap(destination.id)}
                           />
                         ))}
                         {(!destinationsByDay[day] || destinationsByDay[day].length === 0) && (
@@ -309,6 +338,28 @@ export const TripDetailView = ({
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'map' && (
+            <div className="map-tab" style={{ height: '100%', minHeight: '500px' }}>
+              {pickingLocationFor && (
+                <div className="map-picking-banner">
+                  <p>Click on the map to set location for selected destination</p>
+                  <button 
+                    className="btn-secondary small" 
+                    onClick={() => setPickingLocationFor(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <TripMap
+                destinations={trip.destinations}
+                pickingMode={!!pickingLocationFor}
+                onLocationSelect={handleLocationSelect}
+                selectedDestinationId={pickingLocationFor}
+              />
             </div>
           )}
 
