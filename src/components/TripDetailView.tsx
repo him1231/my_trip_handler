@@ -173,9 +173,8 @@ export const TripDetailView = ({
 
   const handleViewOnMap = (destinationId: string) => {
     // Ideally we would also set selectedDestinationId here to highlight it on map
-    // For now just switching tab is enough, silencing unused var warning
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _id = destinationId;
+    // For now just switching tab is enough
+    console.log('Viewing on map:', destinationId);
     setActiveTab('map');
   };
 

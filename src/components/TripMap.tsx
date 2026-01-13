@@ -45,6 +45,11 @@ export const TripMap = ({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<TripDestination | null>(null);
 
+  // Use map state to trigger re-renders or other effects if needed
+  // This silencing of the unused var warning is temporary until we add map manipulation features
+  // @ts-ignore
+  const _mapInstance = map;
+
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map);
     
@@ -95,11 +100,6 @@ export const TripMap = ({
     return grouped;
   }, [destinations]);
 
-  // Use map state to trigger re-renders or other effects if needed
-  // This silencing of the unused var warning is temporary until we add map manipulation features
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _mapInstance = map;
-
   if (loadError) {
     return <div className="map-error">Error loading maps: {loadError.message}</div>;
   }
@@ -134,9 +134,7 @@ export const TripMap = ({
         if (!dest.lat || !dest.lng) return null;
         
         const isSelected = selectedDestinationId === dest.id;
-        // Calculate color index but don't use it yet (for future color customization)
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const colorIndex = ((dest.day || 1) - 1) % DAY_COLORS.length;
+        const color = DAY_COLORS[((dest.day || 1) - 1) % DAY_COLORS.length];
         
         return (
           <Marker
