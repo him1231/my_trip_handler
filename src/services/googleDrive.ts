@@ -1,4 +1,4 @@
-import type { Trip, TripSummary, tripToSummary } from '../types/trip';
+import type { Trip, TripSummary } from '../types/trip';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
