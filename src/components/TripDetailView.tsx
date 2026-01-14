@@ -10,6 +10,7 @@ import { ExpenseCard } from './ExpenseCard';
 import { AddExpenseForm } from './AddExpenseForm';
 import { BudgetSummary } from './BudgetSummary';
 import { PackingList } from './PackingList';
+import { WeatherWidget } from './WeatherWidget';
 import { sortFlights } from '../services/flightService';
 import { exportTripToPdf } from '../services/exportService';
 
@@ -407,6 +408,15 @@ export const TripDetailView = ({
                     >
                       ➕ Add Destination
                     </button>
+                  )}
+
+                  {/* Weather Widget */}
+                  {trip.destinations.length > 0 && (
+                    <WeatherWidget
+                      destinations={trip.destinations}
+                      startDate={trip.startDate}
+                      endDate={trip.endDate}
+                    />
                   )}
                 </>
               )}
