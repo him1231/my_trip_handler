@@ -67,12 +67,14 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
         setError(null);
       }
       
-      // Store user info in localStorage for persistent login
+      // Store user info and token in localStorage for persistent login
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         id: googleUser.id,
         email: googleUser.email,
         name: googleUser.name,
         picture: googleUser.picture,
+        accessToken: googleUser.accessToken,
+        expiresAt: googleUser.expiresAt,
         hasDriveAccess: driveFileGranted,
         hasSharedAccess: driveReadonlyGranted,
       }));
@@ -110,13 +112,32 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
             // or if the session expired
             console.log('Token request failed:', response.error);
             
-            // Clear cached user if silent refresh failed
             if (silentRefreshAttemptedRef.current) {
-              // Don't show error for silent refresh failures
+              // Silent refresh failed - keep user info but mark token as expired
+              // User can still see their profile, but will need to sign in again for actions
+              const cachedUser = localStorage.getItem(STORAGE_KEY);
+              if (cachedUser) {
+                try {
+                  const parsed = JSON.parse(cachedUser);
+                  setUser({
+                    id: parsed.id,
+                    email: parsed.email,
+                    name: parsed.name,
+                    picture: parsed.picture,
+                    accessToken: '', // Clear expired token
+                    expiresAt: 0,
+                  });
+                } catch {
+                  // If parsing fails, clear everything
+                  localStorage.removeItem(STORAGE_KEY);
+                  setUser(null);
+                }
+              }
               setLoading(false);
               return;
             }
             
+            // Explicit sign-in failed
             setError(new Error(response.error_description || response.error));
             setLoading(false);
             return;
@@ -126,8 +147,11 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
             // Pass the granted scopes to verify Drive access
             await fetchUserInfo(response.access_token, response.expires_in, response.scope);
             console.log('Token refresh successful');
+            silentRefreshAttemptedRef.current = false; // Reset for future refreshes
           } catch {
             // Error already set in fetchUserInfo
+            // If silent refresh fails, don't clear the user - let them continue with expired token
+            // They'll be prompted to sign in again when they try to use a feature
           } finally {
             setLoading(false);
           }
@@ -144,22 +168,50 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
       isInitializedRef.current = true;
       
-      // Check for cached user and attempt silent refresh
+      // Check for cached user and restore session
       const cachedUser = localStorage.getItem(STORAGE_KEY);
       if (cachedUser) {
         try {
           const parsed = JSON.parse(cachedUser);
-          // Set user info immediately for better UX (shows profile while refreshing)
-          setUser({
-            ...parsed,
-            accessToken: '',
-            expiresAt: 0,
-          });
-          setHasDriveAccess(parsed.hasDriveAccess || false);
-          setHasSharedAccess(parsed.hasSharedAccess || false);
+          const now = Date.now();
+          const expiresAt = parsed.expiresAt || 0;
+          const tokenExpired = expiresAt < now;
+          const tokenExpiringSoon = expiresAt < (now + 5 * 60 * 1000); // Refresh if expires in 5 minutes
           
-          // Try to silently refresh the token
-          trySilentRefresh();
+          // If we have a valid token, restore the session immediately
+          if (parsed.accessToken && !tokenExpired) {
+            setUser({
+              id: parsed.id,
+              email: parsed.email,
+              name: parsed.name,
+              picture: parsed.picture,
+              accessToken: parsed.accessToken,
+              expiresAt: parsed.expiresAt,
+            });
+            setHasDriveAccess(parsed.hasDriveAccess || false);
+            setHasSharedAccess(parsed.hasSharedAccess || false);
+            setLoading(false);
+            
+            // Refresh token if it's expiring soon (in background)
+            if (tokenExpiringSoon) {
+              setTimeout(() => trySilentRefresh(), 1000);
+            }
+          } else {
+            // Token expired or missing - restore user info and try silent refresh
+            setUser({
+              id: parsed.id,
+              email: parsed.email,
+              name: parsed.name,
+              picture: parsed.picture,
+              accessToken: '',
+              expiresAt: 0,
+            });
+            setHasDriveAccess(parsed.hasDriveAccess || false);
+            setHasSharedAccess(parsed.hasSharedAccess || false);
+            
+            // Try to silently refresh the token
+            trySilentRefresh();
+          }
         } catch {
           localStorage.removeItem(STORAGE_KEY);
           setLoading(false);
@@ -186,6 +238,33 @@ export const useGoogleAuth = (): UseGoogleAuthReturn => {
 
     checkGoogle();
   }, [initializeClient]);
+
+  // Automatic token refresh before expiration
+  useEffect(() => {
+    if (!user?.accessToken || !user?.expiresAt) return;
+
+    const checkAndRefreshToken = () => {
+      const now = Date.now();
+      const expiresAt = user.expiresAt;
+      const timeUntilExpiry = expiresAt - now;
+      const refreshThreshold = 10 * 60 * 1000; // Refresh 10 minutes before expiry
+
+      // If token expires soon, refresh it
+      if (timeUntilExpiry > 0 && timeUntilExpiry < refreshThreshold) {
+        console.log('Token expiring soon, refreshing...');
+        silentRefreshAttemptedRef.current = false; // Allow refresh
+        trySilentRefresh();
+      }
+    };
+
+    // Check immediately
+    checkAndRefreshToken();
+
+    // Check every 5 minutes
+    const interval = setInterval(checkAndRefreshToken, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [user?.accessToken, user?.expiresAt, trySilentRefresh]);
 
   const signIn = useCallback(() => {
     if (!tokenClientRef.current) {
