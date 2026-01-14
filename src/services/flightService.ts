@@ -261,6 +261,7 @@ interface AviationstackFlight {
 export interface FlightSearchResult {
   flight: TripFlight | null;
   fromCache: boolean;
+  error?: string; // Optional error message for plan restrictions, etc.
 }
 
 /**
@@ -346,8 +347,13 @@ export const searchFlightInAviationstack = async (
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       if (response.status === 403 && errorData.error?.code === 'function_access_restricted') {
-        console.error('Aviationstack API: Flight lookup endpoints not available on your plan.');
-        throw new Error('API endpoint not available on your subscription plan. The free plan may not support flight lookups. Please fill in details manually or upgrade your Aviationstack plan.');
+        console.warn('Aviationstack API: Flight lookup endpoints not available on your plan. Free plan requires manual entry.');
+        // Return null gracefully instead of throwing - let UI show friendly message
+        return { 
+          flight: null, 
+          fromCache: false,
+          error: 'Flight auto-fill is not available on the free Aviationstack plan. You can still add flights manually by filling in the details below, or upgrade your Aviationstack subscription to enable auto-fill.'
+        };
       }
       console.error('Aviationstack API error:', response.status, response.statusText);
       return { flight: null, fromCache: false };

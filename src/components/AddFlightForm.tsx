@@ -93,7 +93,12 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
         setFromCache(result.fromCache);
         setFetchError(null);
       } else {
-        setFetchError('Flight information not found. Please fill in details manually.');
+        // Check if there's a specific error message (e.g., plan restriction)
+        if (result.error) {
+          setFetchError(result.error);
+        } else {
+          setFetchError('Flight information not found. Please fill in details manually.');
+        }
         setFromCache(false);
       }
     } catch (error) {
@@ -101,13 +106,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Failed to fetch flight information. Please try again or fill in manually.';
-      
-      // Check if it's a plan restriction error
-      if (errorMessage.includes('subscription plan') || errorMessage.includes('not available on your plan')) {
-        setFetchError('Your Aviationstack plan doesn\'t support flight lookups. Please fill in details manually or upgrade your plan.');
-      } else {
-        setFetchError(errorMessage);
-      }
+      setFetchError(errorMessage);
       setFromCache(false);
     } finally {
       setIsFetching(false);
