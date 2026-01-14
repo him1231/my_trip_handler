@@ -1,87 +1,197 @@
 /**
- * Flight Service for Hong Kong Airport API
- * API Spec: https://www.hongkongairport.com/iwov-resources/misc/opendata/Flight_Information_DataSpec_en.pdf
+ * Flight Service for Aviationstack API
+ * API: https://aviationstack.com/
  * 
- * Note: This API only provides historical data (previous calendar day).
- * For trip planning, we use it to look up past flight info when available.
+ * Supports real-time flight status, historical flights, and future scheduled flights
  */
 
-import type { HKAirportFlightInfo, FlightSearchParams, TripFlight } from '../types/flight';
+import type { TripFlight } from '../types/flight';
 import { getAirlineByIata } from '../data/airlines';
 
-const HK_AIRPORT_API_URL = 'https://www.hongkongairport.com/flightinfo-rest/rest/flights';
+const AVIATIONSTACK_API_URL = 'https://api.aviationstack.com/v1';
+const AVIATIONSTACK_API_KEY = import.meta.env.VITE_AVIATIONSTACK_API_KEY || '';
 
 /**
- * Fetch flight information from Hong Kong Airport API
- * Note: Only returns data for the previous calendar day
+ * Aviationstack API Response types
  */
-export const fetchHKAirportFlights = async (params: FlightSearchParams): Promise<HKAirportFlightInfo | null> => {
+interface AviationstackFlightResponse {
+  pagination: {
+    limit: number;
+    offset: number;
+    count: number;
+    total: number;
+  };
+  data: AviationstackFlight[];
+}
+
+interface AviationstackFlight {
+  flight_date: string;
+  flight_status: string;
+  departure: {
+    airport: string;
+    timezone: string;
+    iata: string;
+    icao: string;
+    terminal?: string;
+    gate?: string;
+    delay?: number;
+    scheduled: string;
+    estimated: string;
+    actual?: string;
+    estimated_runway?: string;
+    actual_runway?: string;
+  };
+  arrival: {
+    airport: string;
+    timezone: string;
+    iata: string;
+    icao: string;
+    terminal?: string;
+    gate?: string;
+    baggage?: string;
+    delay?: number;
+    scheduled: string;
+    estimated: string;
+    actual?: string;
+    estimated_runway?: string;
+    actual_runway?: string;
+  };
+  airline: {
+    name: string;
+    iata: string;
+    icao: string;
+  };
+  flight: {
+    number: string;
+    iata: string;
+    icao: string;
+  };
+  aircraft?: {
+    registration?: string;
+    iata?: string;
+    icao?: string;
+    icao24?: string;
+  };
+}
+
+/**
+ * Search for a specific flight using Aviationstack API
+ * Works for past, present, and future flights
+ */
+export const searchFlightInAviationstack = async (
+  flightNumber: string, // e.g., "CX123" or "123" (will try both)
+  date: string, // YYYY-MM-DD
+  isArrival: boolean
+): Promise<TripFlight | null> => {
+  if (!AVIATIONSTACK_API_KEY) {
+    console.warn('Aviationstack API key not configured');
+    return null;
+  }
+
   try {
-    const url = new URL(HK_AIRPORT_API_URL);
-    url.searchParams.append('date', params.date);
-    url.searchParams.append('arrival', params.arrival.toString());
-    url.searchParams.append('cargo', params.cargo.toString());
-    url.searchParams.append('lang', params.lang);
+    // Extract airline code and flight number
+    // Flight number might be "CX123" or just "123"
+    const flightNumberUpper = flightNumber.toUpperCase();
+    let airlineCode = '';
+    let flightNum = '';
+    
+    // Try to extract airline code (2-3 letters) from the beginning
+    const airlineMatch = flightNumberUpper.match(/^([A-Z]{2,3})(\d+)$/);
+    if (airlineMatch) {
+      airlineCode = airlineMatch[1];
+      flightNum = airlineMatch[2];
+    } else {
+      // If no airline code, try to use just the number
+      flightNum = flightNumberUpper.replace(/[^0-9]/g, '');
+    }
+
+    const url = new URL(`${AVIATIONSTACK_API_URL}/flights`);
+    url.searchParams.append('access_key', AVIATIONSTACK_API_KEY);
+    url.searchParams.append('flight_date', date);
+    
+    // Try with full flight number first (e.g., "CX123")
+    if (airlineCode && flightNum) {
+      url.searchParams.append('flight_iata', `${airlineCode}${flightNum}`);
+    } else if (flightNum) {
+      url.searchParams.append('flight_number', flightNum);
+    } else {
+      return null;
+    }
 
     const response = await fetch(url.toString());
     
     if (!response.ok) {
-      console.error('HK Airport API error:', response.status);
+      console.error('Aviationstack API error:', response.status, response.statusText);
       return null;
     }
 
-    const data = await response.json();
-    return data as HKAirportFlightInfo;
+    const data: AviationstackFlightResponse = await response.json();
+
+    if (!data.data || data.data.length === 0) {
+      return null;
+    }
+
+    // Find the best matching flight
+    // If we have multiple results, prefer the one matching our airline code
+    let flight = data.data[0];
+    
+    if (airlineCode && data.data.length > 1) {
+      const matching = data.data.find(
+        f => f.airline.iata.toUpperCase() === airlineCode.toUpperCase()
+      );
+      if (matching) {
+        flight = matching;
+      }
+    }
+
+    // Extract time from departure or arrival based on type
+    const timeData = isArrival ? flight.arrival : flight.departure;
+    const scheduledTime = timeData.scheduled || timeData.estimated;
+    const time = scheduledTime ? new Date(scheduledTime).toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    }) : '';
+
+    // Get status
+    let status = flight.flight_status || '';
+    if (timeData.delay && timeData.delay > 0) {
+      status = `Delayed ${timeData.delay} min`;
+    }
+
+    // Build the flight entry
+    const airline = getAirlineByIata(flight.airline.iata);
+    
+    return {
+      id: crypto.randomUUID(),
+      type: isArrival ? 'arrival' : 'departure',
+      flightNumber: flight.flight.iata || flight.flight.number,
+      airlineCode: flight.airline.iata,
+      airlineName: airline?.name || flight.airline.name,
+      date,
+      time,
+      origin: isArrival ? flight.departure.iata : undefined,
+      destination: isArrival ? undefined : flight.arrival.iata,
+      terminal: timeData.terminal || undefined,
+      gate: timeData.gate || undefined,
+      status: status || undefined,
+    };
   } catch (error) {
-    console.error('Failed to fetch HK Airport flights:', error);
+    console.error('Failed to fetch flight from Aviationstack:', error);
     return null;
   }
 };
 
 /**
- * Search for a specific flight in HK Airport data
+ * Search for a specific flight (backward compatible function name)
+ * Now uses Aviationstack instead of HK Airport API
  */
 export const searchFlightInHKData = async (
   flightNumber: string,
   date: string,
   isArrival: boolean
 ): Promise<TripFlight | null> => {
-  const data = await fetchHKAirportFlights({
-    date,
-    arrival: isArrival,
-    cargo: false,
-    lang: 'en',
-  });
-
-  if (!data?.list) return null;
-
-  // Find the flight
-  for (const flight of data.list) {
-    const matchingFlight = flight.flight?.find(
-      f => f.no.toUpperCase() === flightNumber.toUpperCase()
-    );
-
-    if (matchingFlight) {
-      const airline = getAirlineByIata(matchingFlight.airline);
-      
-      return {
-        id: crypto.randomUUID(),
-        type: isArrival ? 'arrival' : 'departure',
-        flightNumber: matchingFlight.no,
-        airlineCode: matchingFlight.airline,
-        airlineName: airline?.name || matchingFlight.airline,
-        date,
-        time: flight.time,
-        origin: flight.origin,
-        destination: flight.destination,
-        terminal: flight.terminal,
-        gate: flight.gate,
-        status: flight.status,
-      };
-    }
-  }
-
-  return null;
+  return searchFlightInAviationstack(flightNumber, date, isArrival);
 };
 
 /**
@@ -136,7 +246,9 @@ export const getFlightStatusColor = (status?: string): string => {
   if (!status) return '#888';
   
   const lowerStatus = status.toLowerCase();
-  if (lowerStatus.includes('on time') || lowerStatus.includes('arrived') || lowerStatus.includes('departed')) {
+  if (lowerStatus.includes('scheduled') || lowerStatus.includes('on time') || 
+      lowerStatus.includes('landed') || lowerStatus.includes('arrived') || 
+      lowerStatus.includes('departed')) {
     return '#4CAF50'; // Green
   }
   if (lowerStatus.includes('delay')) {
@@ -145,7 +257,10 @@ export const getFlightStatusColor = (status?: string): string => {
   if (lowerStatus.includes('cancel')) {
     return '#F44336'; // Red
   }
-  return '#2196F3'; // Blue for other statuses
+  if (lowerStatus.includes('active') || lowerStatus.includes('in flight')) {
+    return '#2196F3'; // Blue
+  }
+  return '#888'; // Gray for unknown
 };
 
 /**

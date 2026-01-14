@@ -88,6 +88,7 @@ Edit `.env` with your credentials:
 ```bash
 VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 VITE_GOOGLE_MAPS_API_KEY=your-api-key
+VITE_AVIATIONSTACK_API_KEY=your-aviationstack-api-key  # Optional: Get free API key from https://aviationstack.com/
 ```
 
 ### 4. Run Development Server

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { TripFlight, Airline } from '../types/flight';
 import { AIRLINES, searchAirlines, formatAirlineDisplay } from '../data/airlines';
-import { createFlightEntry, searchFlightInHKData } from '../services/flightService';
+import { createFlightEntry, searchFlightInAviationstack } from '../services/flightService';
 
 interface AddFlightFormProps {
   tripStartDate: string;
@@ -58,25 +58,10 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
     setAutoFilled(false); // Reset auto-fill status when airline changes
   };
 
-  // Check if date is in the past (HK Airport API only has historical data)
-  const isDateInPast = (dateStr: string): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkDate = new Date(dateStr);
-    checkDate.setHours(0, 0, 0, 0);
-    return checkDate < today;
-  };
-
-  // Fetch flight information from HK Airport API
+  // Fetch flight information from Aviationstack API
   const handleFetchFlightInfo = async () => {
     if (!selectedAirline || !flightNumber || !date) {
       setFetchError('Please select airline, enter flight number, and date first');
-      return;
-    }
-
-    // Check if date is in the past
-    if (!isDateInPast(date)) {
-      setFetchError('HK Airport API only provides historical data. Please enter a past date or fill in details manually.');
       return;
     }
 
@@ -85,7 +70,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
 
     try {
       const fullFlightNumber = `${selectedAirline.iata}${flightNumber}`;
-      const flightData = await searchFlightInHKData(
+      const flightData = await searchFlightInAviationstack(
         fullFlightNumber,
         date,
         type === 'arrival'
@@ -114,9 +99,9 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
     }
   };
 
-  // Auto-fetch when all required fields are filled and date is in the past
+  // Auto-fetch when all required fields are filled
   useEffect(() => {
-    if (!selectedAirline || !flightNumber || !date || autoFilled || !isDateInPast(date)) {
+    if (!selectedAirline || !flightNumber || !date || autoFilled) {
       return;
     }
 
@@ -127,7 +112,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
 
       try {
         const fullFlightNumber = `${selectedAirline.iata}${flightNumber}`;
-        const flightData = await searchFlightInHKData(
+        const flightData = await searchFlightInAviationstack(
           fullFlightNumber,
           date,
           type === 'arrival'
@@ -294,8 +279,8 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
                 type="button"
                 className="fetch-flight-btn"
                 onClick={handleFetchFlightInfo}
-                disabled={isFetching || !isDateInPast(date)}
-                title={!isDateInPast(date) ? 'HK Airport API only has historical data' : 'Fetch flight information'}
+                disabled={isFetching}
+                title="Fetch flight information from Aviationstack API"
               >
                 {isFetching ? '⏳' : '🔍'} {isFetching ? 'Fetching...' : 'Fetch Info'}
               </button>
@@ -307,17 +292,12 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
       {/* Auto-fill status and error messages */}
       {autoFilled && (
         <div className="auto-fill-success">
-          ✓ Flight information auto-filled from HK Airport API
+          ✓ Flight information auto-filled from Aviationstack API
         </div>
       )}
       {fetchError && (
         <div className="fetch-error">
           ⚠️ {fetchError}
-        </div>
-      )}
-      {selectedAirline && flightNumber && date && !isDateInPast(date) && (
-        <div className="fetch-warning">
-          ℹ️ HK Airport API only provides historical data. For future dates, please fill in details manually.
         </div>
       )}
 
