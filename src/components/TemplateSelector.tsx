@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TripTemplate } from '../data/tripTemplates';
-import { TRIP_TEMPLATES, getTemplatesByCategory, searchTemplates } from '../data/tripTemplates';
+import { getTemplatesByCategory, searchTemplates } from '../data/tripTemplates';
 
 interface TemplateSelectorProps {
   onSelect: (template: TripTemplate) => void;

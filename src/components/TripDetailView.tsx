@@ -114,6 +114,17 @@ export const TripDetailView = ({
     }
   }, [isEditing]);
 
+  const handleImportDestinations = useCallback((destinations: Omit<TripDestination, 'id' | 'order'>[]) => {
+    const newDestinations: TripDestination[] = destinations.map((dest) => ({
+      ...dest,
+      id: crypto.randomUUID(),
+      order: trip.destinations.filter((d) => d.day === dest.day).length,
+    }));
+    updateTrip({
+      destinations: [...trip.destinations, ...newDestinations],
+    });
+  }, [trip.destinations, updateTrip]);
+
   // Auto-sync with Google Maps list (every 5 minutes)
   useEffect(() => {
     const syncConfig = getSyncConfig(trip.id);
@@ -210,17 +221,6 @@ export const TripDetailView = ({
     });
     setShowAddForm(false);
   };
-
-  const handleImportDestinations = useCallback((destinations: Omit<TripDestination, 'id' | 'order'>[]) => {
-    const newDestinations: TripDestination[] = destinations.map((dest) => ({
-      ...dest,
-      id: crypto.randomUUID(),
-      order: trip.destinations.filter((d) => d.day === dest.day).length,
-    }));
-    updateTrip({
-      destinations: [...trip.destinations, ...newDestinations],
-    });
-  }, [trip.destinations, updateTrip]);
 
   const handleUpdateDestination = (id: string, updates: Partial<TripDestination>) => {
     updateTrip({

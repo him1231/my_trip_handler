@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { TripDestination } from '../types/trip';
-import { getWeatherForecast, getCurrentWeather, getWeatherIconUrl, type WeatherForecast, type WeatherData } from '../services/weatherService';
+import { getWeatherForecast, getWeatherIconUrl, type WeatherForecast, type WeatherData } from '../services/weatherService';
 
 interface WeatherWidgetProps {
   destinations: TripDestination[];

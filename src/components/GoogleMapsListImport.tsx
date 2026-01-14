@@ -123,7 +123,7 @@ export const GoogleMapsListImport = ({
     }
 
     // Convert to destinations (day 1 by default, user can reorganize later)
-    const destinations = selected.map((place, index) => ({
+    const destinations = selected.map((place) => ({
       name: place.name,
       address: place.address,
       placeId: place.placeId,
@@ -187,7 +187,7 @@ export const GoogleMapsListImport = ({
       );
 
       if (newPlaces.length > 0) {
-        const destinations = newPlaces.map((place, index) => ({
+        const destinations = newPlaces.map((place) => ({
           name: place.name,
           address: place.address,
           placeId: place.placeId,
