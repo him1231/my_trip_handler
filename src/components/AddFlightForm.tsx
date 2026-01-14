@@ -98,7 +98,16 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
       }
     } catch (error) {
       console.error('Failed to fetch flight info:', error);
-      setFetchError('Failed to fetch flight information. Please try again or fill in manually.');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to fetch flight information. Please try again or fill in manually.';
+      
+      // Check if it's a plan restriction error
+      if (errorMessage.includes('subscription plan') || errorMessage.includes('not available on your plan')) {
+        setFetchError('Your Aviationstack plan doesn\'t support flight lookups. Please fill in details manually or upgrade your plan.');
+      } else {
+        setFetchError(errorMessage);
+      }
       setFromCache(false);
     } finally {
       setIsFetching(false);

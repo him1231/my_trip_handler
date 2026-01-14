@@ -304,7 +304,9 @@ export const searchFlightInAviationstack = async (
       flightNum = flightNumberUpper.replace(/[^0-9]/g, '');
     }
 
-    const url = new URL(`${AVIATIONSTACK_API_URL}/flights`);
+    // Try flights endpoint (may require paid plan)
+    // If that fails with plan restriction, try flight_schedules as fallback
+    let url = new URL(`${AVIATIONSTACK_API_URL}/flights`);
     url.searchParams.append('access_key', AVIATIONSTACK_API_KEY);
     url.searchParams.append('flight_date', date);
     
@@ -317,16 +319,43 @@ export const searchFlightInAviationstack = async (
       return { flight: null, fromCache: false };
     }
 
-    const response = await fetch(url.toString());
+    let response = await fetch(url.toString());
+    let data: AviationstackFlightResponse | null = null;
     
+    // If flights endpoint fails with 403 (plan restriction), try flight_schedules
     if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      if (response.status === 403 && errorData.error?.code === 'function_access_restricted') {
+        // Try flight_schedules endpoint as fallback (might be available on free plan)
+        console.log('flights endpoint not available, trying flight_schedules...');
+        url = new URL(`${AVIATIONSTACK_API_URL}/flight_schedules`);
+        url.searchParams.append('access_key', AVIATIONSTACK_API_KEY);
+        url.searchParams.append('flight_date', date);
+        
+        if (airlineCode && flightNum) {
+          url.searchParams.append('flight_iata', `${airlineCode}${flightNum}`);
+        } else if (flightNum) {
+          url.searchParams.append('flight_number', flightNum);
+        }
+        
+        response = await fetch(url.toString());
+      }
+    }
+    
+    // Check if the fallback also failed
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      if (response.status === 403 && errorData.error?.code === 'function_access_restricted') {
+        console.error('Aviationstack API: Flight lookup endpoints not available on your plan.');
+        throw new Error('API endpoint not available on your subscription plan. The free plan may not support flight lookups. Please fill in details manually or upgrade your Aviationstack plan.');
+      }
       console.error('Aviationstack API error:', response.status, response.statusText);
       return { flight: null, fromCache: false };
     }
 
-    const data: AviationstackFlightResponse = await response.json();
+    data = await response.json() as AviationstackFlightResponse;
 
-    if (!data.data || data.data.length === 0) {
+    if (!data || !data.data || data.data.length === 0) {
       return { flight: null, fromCache: false };
     }
 
