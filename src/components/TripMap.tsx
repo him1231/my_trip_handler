@@ -1,9 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, Polyline, InfoWindow } from '@react-google-maps/api';
+import { useGoogleMaps } from '../contexts/GoogleMapsContext';
 import type { TripDestination } from '../types/trip';
-
-// IMPORTANT: Keep libraries array outside component to prevent reload warnings
-const GOOGLE_MAPS_LIBRARIES: ('places' | 'geometry')[] = ['places', 'geometry'];
 
 const containerStyle = {
   width: '100%',
@@ -40,13 +38,7 @@ export const TripMap = ({
   onLocationSelect,
   selectedDestinationId 
 }: TripMapProps) => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-  
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: apiKey,
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded, loadError } = useGoogleMaps();
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<TripDestination | null>(null);

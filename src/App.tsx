@@ -9,6 +9,7 @@ import { CreateTripModal } from './components/CreateTripModal'
 import { ShareModal } from './components/ShareModal'
 import { TripDetailView } from './components/TripDetailView'
 import { getSharedWithMe } from './services/shareService'
+import { GoogleMapsProvider } from './contexts/GoogleMapsContext'
 import type { Trip, TripSummary } from './types/trip'
 
 function App() {
@@ -203,8 +204,9 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
+    <GoogleMapsProvider>
+      <div className="app">
+        <header className="app-header">
         <h1>My Trip Handler</h1>
         <p>Plan your perfect trip with Google Maps & Drive</p>
         
@@ -322,7 +324,8 @@ function App() {
           accessToken={user.accessToken}
         />
       )}
-    </div>
+      </div>
+    </GoogleMapsProvider>
   )
 }
 

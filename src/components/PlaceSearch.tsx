@@ -1,8 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
-
-// Keep libraries array outside component to prevent reload warnings
-const GOOGLE_MAPS_LIBRARIES: ('places')[] = ['places'];
+import { Autocomplete } from '@react-google-maps/api';
+import { useGoogleMaps } from '../contexts/GoogleMapsContext';
 
 interface PlaceSearchProps {
   onPlaceSelect: (place: {
@@ -24,11 +22,7 @@ export const PlaceSearch = ({
   const [inputValue, setInputValue] = useState('');
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded } = useGoogleMaps();
 
   const onLoad = useCallback((autocomplete: google.maps.places.Autocomplete) => {
     autocompleteRef.current = autocomplete;
