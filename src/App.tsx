@@ -9,7 +9,6 @@ import { CreateTripModal } from './components/CreateTripModal'
 import { ShareModal } from './components/ShareModal'
 import { TripDetailView } from './components/TripDetailView'
 import { getSharedWithMe } from './services/shareService'
-import { GoogleMapsProvider } from './contexts/GoogleMapsContext'
 import type { Trip, TripSummary } from './types/trip'
 
 function App() {
@@ -177,7 +176,7 @@ function App() {
   const error = authError || driveError
 
   return (
-    <GoogleMapsProvider>
+    <>
       {/* Show trip detail view if a trip is selected */}
       {selectedTrip ? (
         <>
@@ -323,7 +322,7 @@ function App() {
           accessToken={user.accessToken}
         />
       )}
-    </GoogleMapsProvider>
+    </>
   )
 }
 
