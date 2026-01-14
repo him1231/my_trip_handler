@@ -4487,3 +4487,195 @@
     align-items: flex-start;
   }
 }
+
+/* Google Maps List Import Styles */
+.add-destination-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.add-destination-btn.secondary {
+  background: rgba(15, 52, 96, 0.3);
+  border-color: #0f3460;
+}
+
+.add-destination-btn.secondary:hover {
+  background: rgba(15, 52, 96, 0.5);
+  border-color: #e94560;
+}
+
+.maps-url-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 52, 96, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  font-family: monospace;
+}
+
+.maps-url-input:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.form-hint {
+  margin-top: 0.5rem;
+  color: #a0a0a0;
+  font-size: 0.85rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #a0a0a0;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #e94560;
+}
+
+.sync-status {
+  padding: 1rem;
+  background: rgba(15, 52, 96, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.sync-status-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.sync-status-label {
+  color: #4caf50;
+  font-weight: 500;
+  flex: 1;
+}
+
+.sync-status-url {
+  color: #a0a0a0;
+  font-size: 0.9rem;
+  word-break: break-all;
+  margin: 0.5rem 0;
+}
+
+.sync-status-time {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.imported-places {
+  margin-top: 2rem;
+}
+
+.imported-places-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.imported-places-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.imported-places-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 1.5rem;
+}
+
+.imported-place-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(15, 52, 96, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.imported-place-card:hover {
+  border-color: #e94560;
+  background: rgba(15, 52, 96, 0.5);
+}
+
+.imported-place-card.selected {
+  border-color: #e94560;
+  background: rgba(233, 69, 96, 0.1);
+}
+
+.imported-place-card input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 0.25rem;
+  cursor: pointer;
+  accent-color: #e94560;
+  flex-shrink: 0;
+}
+
+.imported-place-info {
+  flex: 1;
+}
+
+.imported-place-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.imported-place-address {
+  margin: 0 0 0.5rem 0;
+  color: #a0a0a0;
+  font-size: 0.9rem;
+}
+
+.imported-place-notes {
+  margin: 0;
+  color: #888;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .add-destination-actions {
+    flex-direction: column;
+  }
+  
+  .add-destination-btn {
+    width: 100%;
+  }
+  
+  .sync-status-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .imported-places-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

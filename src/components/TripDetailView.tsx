@@ -11,8 +11,11 @@ import { AddExpenseForm } from './AddExpenseForm';
 import { BudgetSummary } from './BudgetSummary';
 import { PackingList } from './PackingList';
 import { WeatherWidget } from './WeatherWidget';
+import { GoogleMapsListImport } from './GoogleMapsListImport';
 import { sortFlights } from '../services/flightService';
 import { exportTripToPdf } from '../services/exportService';
+import { getSyncConfig, importPlacesFromUrl } from '../services/googleMapsListService';
+import { useGoogleMaps } from '../contexts/GoogleMapsContext';
 
 type TabType = 'destinations' | 'flights' | 'budget' | 'map' | 'notes' | 'packing' | 'settings';
 
@@ -76,11 +79,14 @@ export const TripDetailView = ({
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddFlightForm, setShowAddFlightForm] = useState(false);
   const [showAddExpenseForm, setShowAddExpenseForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [pickingLocationFor, setPickingLocationFor] = useState<string | null>(null);
   
   const saveTimeoutRef = useRef<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const syncIntervalRef = useRef<number | null>(null);
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
 
   // Auto-save after 2s of inactivity
   useEffect(() => {
@@ -107,6 +113,64 @@ export const TripDetailView = ({
       nameInputRef.current.select();
     }
   }, [isEditing]);
+
+  // Auto-sync with Google Maps list (every 5 minutes)
+  useEffect(() => {
+    const syncConfig = getSyncConfig(trip.id);
+    if (!syncConfig || !mapsLoaded) {
+      return;
+    }
+
+    const performSync = async () => {
+      try {
+        const mapDiv = document.createElement('div');
+        const map = new google.maps.Map(mapDiv);
+        const placesService = new google.maps.places.PlacesService(map);
+        const geocoder = new google.maps.Geocoder();
+
+        const places = await importPlacesFromUrl(syncConfig.listUrl, placesService, geocoder);
+        
+        // Find new places
+        const existingPlaceIds = new Set(
+          trip.destinations
+            .map(d => d.placeId)
+            .filter((id): id is string => !!id)
+        );
+
+        const newPlaces = places.filter(
+          p => p.placeId && !existingPlaceIds.has(p.placeId)
+        );
+
+        if (newPlaces.length > 0) {
+          const destinations = newPlaces.map((place) => ({
+            name: place.name,
+            address: place.address,
+            placeId: place.placeId,
+            lat: place.lat,
+            lng: place.lng,
+            day: 1,
+            notes: place.notes,
+          }));
+          handleImportDestinations(destinations);
+        }
+      } catch (error) {
+        console.error('Auto-sync failed:', error);
+      }
+    };
+
+    // Initial sync after 30 seconds
+    const initialTimeout = window.setTimeout(performSync, 30000);
+
+    // Then sync every 5 minutes
+    syncIntervalRef.current = window.setInterval(performSync, 5 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, [trip.id, trip.destinations, mapsLoaded, handleImportDestinations]);
 
   const updateTrip = useCallback((updates: Partial<Trip>) => {
     setTrip((prev) => ({
@@ -146,6 +210,17 @@ export const TripDetailView = ({
     });
     setShowAddForm(false);
   };
+
+  const handleImportDestinations = useCallback((destinations: Omit<TripDestination, 'id' | 'order'>[]) => {
+    const newDestinations: TripDestination[] = destinations.map((dest) => ({
+      ...dest,
+      id: crypto.randomUUID(),
+      order: trip.destinations.filter((d) => d.day === dest.day).length,
+    }));
+    updateTrip({
+      destinations: [...trip.destinations, ...newDestinations],
+    });
+  }, [trip.destinations, updateTrip]);
 
   const handleUpdateDestination = (id: string, updates: Partial<TripDestination>) => {
     updateTrip({
@@ -402,12 +477,20 @@ export const TripDetailView = ({
                       onCancel={() => setShowAddForm(false)}
                     />
                   ) : (
-                    <button
-                      className="add-destination-btn"
-                      onClick={() => setShowAddForm(true)}
-                    >
-                      ➕ Add Destination
-                    </button>
+                    <div className="add-destination-actions">
+                      <button
+                        className="add-destination-btn"
+                        onClick={() => setShowAddForm(true)}
+                      >
+                        ➕ Add Destination
+                      </button>
+                      <button
+                        className="add-destination-btn secondary"
+                        onClick={() => setShowImportModal(true)}
+                      >
+                        📋 Import from Google Maps
+                      </button>
+                    </div>
                   )}
 
                   {/* Weather Widget */}
@@ -669,6 +752,15 @@ export const TripDetailView = ({
           </div>
         </footer>
       </div>
+
+      {/* Google Maps List Import Modal */}
+      <GoogleMapsListImport
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImportDestinations}
+        tripId={trip.id}
+        existingDestinations={trip.destinations}
+      />
     </div>
   );
 };
