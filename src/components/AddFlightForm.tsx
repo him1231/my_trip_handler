@@ -29,6 +29,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,9 +57,10 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
     setAirlineSearch(formatAirlineDisplay(airline));
     setShowDropdown(false);
     setAutoFilled(false); // Reset auto-fill status when airline changes
+    setFromCache(false);
   };
 
-  // Fetch flight information from Aviationstack API
+  // Fetch flight information from Aviationstack API (cache-aware)
   const handleFetchFlightInfo = async () => {
     if (!selectedAirline || !flightNumber || !date) {
       setFetchError('Please select airline, enter flight number, and date first');
@@ -67,79 +69,41 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
 
     setIsFetching(true);
     setFetchError(null);
+    setFromCache(false);
 
     try {
       const fullFlightNumber = `${selectedAirline.iata}${flightNumber}`;
-      const flightData = await searchFlightInAviationstack(
+      const result = await searchFlightInAviationstack(
         fullFlightNumber,
         date,
         type === 'arrival'
       );
 
-      if (flightData) {
+      if (result.flight) {
         // Auto-fill all fields
-        setTime(flightData.time || '');
+        setTime(result.flight.time || '');
         if (type === 'arrival') {
-          setOrigin(flightData.origin || '');
+          setOrigin(result.flight.origin || '');
         } else {
-          setDestination(flightData.destination || '');
+          setDestination(result.flight.destination || '');
         }
-        setTerminal(flightData.terminal || '');
-        setGate(flightData.gate || '');
+        setTerminal(result.flight.terminal || '');
+        setGate(result.flight.gate || '');
         setAutoFilled(true);
+        setFromCache(result.fromCache);
         setFetchError(null);
       } else {
         setFetchError('Flight information not found. Please fill in details manually.');
+        setFromCache(false);
       }
     } catch (error) {
       console.error('Failed to fetch flight info:', error);
       setFetchError('Failed to fetch flight information. Please try again or fill in manually.');
+      setFromCache(false);
     } finally {
       setIsFetching(false);
     }
   };
-
-  // Auto-fetch when all required fields are filled
-  useEffect(() => {
-    if (!selectedAirline || !flightNumber || !date || autoFilled) {
-      return;
-    }
-
-    // Debounce the auto-fetch
-    const timer = setTimeout(async () => {
-      setIsFetching(true);
-      setFetchError(null);
-
-      try {
-        const fullFlightNumber = `${selectedAirline.iata}${flightNumber}`;
-        const flightData = await searchFlightInAviationstack(
-          fullFlightNumber,
-          date,
-          type === 'arrival'
-        );
-
-        if (flightData) {
-          // Auto-fill all fields
-          setTime(flightData.time || '');
-          if (type === 'arrival') {
-            setOrigin(flightData.origin || '');
-          } else {
-            setDestination(flightData.destination || '');
-          }
-          setTerminal(flightData.terminal || '');
-          setGate(flightData.gate || '');
-          setAutoFilled(true);
-        }
-      } catch (error) {
-        console.error('Failed to fetch flight info:', error);
-        // Don't show error for auto-fetch, just silently fail
-      } finally {
-        setIsFetching(false);
-      }
-    }, 1500); // Wait 1.5 seconds after user stops typing
-
-    return () => clearTimeout(timer);
-  }, [selectedAirline, flightNumber, date, type, autoFilled]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,14 +144,22 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
           <button
             type="button"
             className={`toggle-btn ${type === 'departure' ? 'active' : ''}`}
-            onClick={() => setType('departure')}
+            onClick={() => {
+              setType('departure');
+              setAutoFilled(false);
+              setFromCache(false);
+            }}
           >
             ✈️ Departure
           </button>
           <button
             type="button"
             className={`toggle-btn ${type === 'arrival' ? 'active' : ''}`}
-            onClick={() => setType('arrival')}
+            onClick={() => {
+              setType('arrival');
+              setAutoFilled(false);
+              setFromCache(false);
+            }}
           >
             🛬 Arrival
           </button>
@@ -244,6 +216,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
             onChange={(e) => {
               setFlightNumber(e.target.value.toUpperCase());
               setAutoFilled(false); // Reset when flight number changes
+              setFromCache(false);
             }}
             placeholder="123"
             maxLength={6}
@@ -261,6 +234,7 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
             onChange={(e) => {
               setDate(e.target.value);
               setAutoFilled(false); // Reset when date changes
+              setFromCache(false);
             }}
             min={tripStartDate}
             max={tripEndDate}
@@ -292,7 +266,11 @@ export const AddFlightForm = ({ tripStartDate, tripEndDate, onAdd, onCancel }: A
       {/* Auto-fill status and error messages */}
       {autoFilled && (
         <div className="auto-fill-success">
-          ✓ Flight information auto-filled from Aviationstack API
+          {fromCache ? (
+            <>✓ Using cached flight data (no API call)</>
+          ) : (
+            <>✓ Flight information fetched from Aviationstack API</>
+          )}
         </div>
       )}
       {fetchError && (
