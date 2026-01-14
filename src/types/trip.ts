@@ -25,6 +25,19 @@ export interface TripExpense {
   destinationId?: string;
 }
 
+export interface PackingItem {
+  id: string;
+  name: string;
+  category: 'clothing' | 'electronics' | 'documents' | 'toiletries' | 'accessories' | 'other';
+  packed: boolean;
+  quantity?: number;
+  notes?: string;
+}
+
+export interface PackingList {
+  items: PackingItem[];
+}
+
 export interface Trip {
   id: string;
   name: string;
@@ -35,6 +48,7 @@ export interface Trip {
   destinations: TripDestination[];
   flights: TripFlight[];
   expenses: TripExpense[];
+  packingList?: PackingList;
   totalBudget?: number;
   currency: string;
   createdAt: string;

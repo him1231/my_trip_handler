@@ -9,10 +9,11 @@ import { AddFlightForm } from './AddFlightForm';
 import { ExpenseCard } from './ExpenseCard';
 import { AddExpenseForm } from './AddExpenseForm';
 import { BudgetSummary } from './BudgetSummary';
+import { PackingList } from './PackingList';
 import { sortFlights } from '../services/flightService';
 import { exportTripToPdf } from '../services/exportService';
 
-type TabType = 'destinations' | 'flights' | 'budget' | 'map' | 'notes' | 'settings';
+type TabType = 'destinations' | 'flights' | 'budget' | 'map' | 'notes' | 'packing' | 'settings';
 
 interface TripDetailViewProps {
   trip: Trip;
@@ -332,6 +333,15 @@ export const TripDetailView = ({
             📝 Notes
           </button>
           <button
+            className={`tab ${activeTab === 'packing' ? 'active' : ''}`}
+            onClick={() => setActiveTab('packing')}
+          >
+            🧳 Packing
+            {trip.packingList && trip.packingList.items.length > 0 && (
+              <span className="tab-badge">{trip.packingList.items.filter(i => i.packed).length}/{trip.packingList.items.length}</span>
+            )}
+          </button>
+          <button
             className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveTab('settings')}
           >
@@ -539,6 +549,15 @@ export const TripDetailView = ({
                 placeholder="Add notes about your trip..."
                 value={trip.description || ''}
                 onChange={handleNotesChange}
+              />
+            </div>
+          )}
+
+          {activeTab === 'packing' && (
+            <div className="packing-tab">
+              <PackingList
+                packingList={trip.packingList}
+                onUpdate={(packingList) => updateTrip({ packingList })}
               />
             </div>
           )}
