@@ -114,6 +114,15 @@ export const TripDetailView = ({
     }
   }, [isEditing]);
 
+  const updateTrip = useCallback((updates: Partial<Trip>) => {
+    setTrip((prev) => ({
+      ...prev,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }));
+    setIsDirty(true);
+  }, []);
+
   const handleImportDestinations = useCallback((destinations: Omit<TripDestination, 'id' | 'order'>[]) => {
     const newDestinations: TripDestination[] = destinations.map((dest) => ({
       ...dest,
@@ -182,15 +191,6 @@ export const TripDetailView = ({
       }
     };
   }, [trip.id, trip.destinations, mapsLoaded, handleImportDestinations]);
-
-  const updateTrip = useCallback((updates: Partial<Trip>) => {
-    setTrip((prev) => ({
-      ...prev,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    }));
-    setIsDirty(true);
-  }, []);
 
   const handleNameSave = () => {
     if (editedName.trim()) {
