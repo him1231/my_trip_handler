@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { createNewTrip, type Trip } from '../types/trip';
+import { TemplateSelector } from './TemplateSelector';
+import { createTripFromTemplate, type TripTemplate } from '../data/tripTemplates';
 
 interface CreateTripModalProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ export const CreateTripModal = ({ isOpen, onClose, onSave, saving }: CreateTripM
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,11 +61,48 @@ export const CreateTripModal = ({ isOpen, onClose, onSave, saving }: CreateTripM
   const handleClose = () => {
     if (!saving) {
       setError('');
+      setName('');
+      setDescription('');
+      setStartDate('');
+      setEndDate('');
+      setShowTemplates(false);
       onClose();
     }
   };
 
+  const handleTemplateSelect = (template: TripTemplate) => {
+    const today = new Date();
+    const defaultStartDate = today.toISOString().split('T')[0];
+    const trip = createTripFromTemplate(template, defaultStartDate);
+    
+    setName(trip.name);
+    setDescription(trip.description || '');
+    setStartDate(trip.startDate);
+    setEndDate(trip.endDate);
+    setShowTemplates(false);
+    
+    // Auto-save the template trip
+    onSave(trip).then(() => {
+      handleClose();
+    }).catch((err) => {
+      setError(err instanceof Error ? err.message : 'Failed to create trip from template');
+    });
+  };
+
   if (!isOpen) return null;
+
+  if (showTemplates) {
+    return (
+      <div className="modal-overlay" onClick={() => setShowTemplates(false)}>
+        <div className="modal modal-large" onClick={e => e.stopPropagation()}>
+          <TemplateSelector
+            onSelect={handleTemplateSelect}
+            onCancel={() => setShowTemplates(false)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -80,6 +120,22 @@ export const CreateTripModal = ({ isOpen, onClose, onSave, saving }: CreateTripM
 
         <form onSubmit={handleSubmit} className="modal-body">
           {error && <div className="form-error">{error}</div>}
+
+          {/* Template Option */}
+          <div className="template-option">
+            <button
+              type="button"
+              className="btn-template"
+              onClick={() => setShowTemplates(true)}
+            >
+              📋 Start from Template
+            </button>
+            <p className="template-hint">Choose a pre-built itinerary to get started quickly</p>
+          </div>
+
+          <div className="form-divider">
+            <span>OR</span>
+          </div>
 
           <div className="form-group">
             <label htmlFor="trip-name">Trip Name *</label>
