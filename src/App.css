@@ -3118,6 +3118,61 @@
   padding: 1.5rem;
 }
 
+.budget-currency-selector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #0f3460;
+  flex-wrap: wrap;
+}
+
+.budget-currency-selector label {
+  color: #a0a0a0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.currency-select {
+  padding: 0.5rem 1rem;
+  background: rgba(15, 52, 96, 0.3);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.currency-select:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.currency-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.converting-indicator {
+  color: #a0a0a0;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.conversion-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+}
+
+.currency-note {
+  color: #a0a0a0;
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-left: auto;
+}
+
 .budget-overview {
   display: flex;
   justify-content: space-between;
