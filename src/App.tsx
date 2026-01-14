@@ -176,36 +176,22 @@ function App() {
 
   const error = authError || driveError
 
-  // Show trip detail view if a trip is selected
-  if (selectedTrip) {
-    return (
-      <>
-        <TripDetailView
-          trip={selectedTrip}
-          onClose={handleCloseDetail}
-          onSave={handleSaveTrip}
-          onShare={selectedTrip.driveFileId ? handleShareFromDetail : undefined}
-          isSaving={detailSaving}
-          lastSaved={lastSaved}
-        />
-        
-        {/* Share Modal (can be opened from detail view) */}
-        {shareModalTrip && user?.accessToken && (
-          <ShareModal
-            isOpen={!!shareModalTrip}
-            onClose={() => setShareModalTrip(null)}
-            fileId={shareModalTrip.driveFileId}
-            tripName={shareModalTrip.name}
-            accessToken={user.accessToken}
-          />
-        )}
-      </>
-    )
-  }
-
   return (
     <GoogleMapsProvider>
-      <div className="app">
+      {/* Show trip detail view if a trip is selected */}
+      {selectedTrip ? (
+        <>
+          <TripDetailView
+            trip={selectedTrip}
+            onClose={handleCloseDetail}
+            onSave={handleSaveTrip}
+            onShare={selectedTrip.driveFileId ? handleShareFromDetail : undefined}
+            isSaving={detailSaving}
+            lastSaved={lastSaved}
+          />
+        </>
+      ) : (
+        <div className="app">
         <header className="app-header">
         <h1>My Trip Handler</h1>
         <p>Plan your perfect trip with Google Maps & Drive</p>
@@ -300,21 +286,34 @@ function App() {
             </section>
           </>
         )}
-      </main>
+        </main>
+        
+        <footer className="app-footer">
+          <p>Your data is stored securely in your own Google Drive</p>
+        </footer>
+
+        {/* Create Trip Modal */}
+        <CreateTripModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleCreateTrip}
+          saving={saving}
+        />
+
+        {/* Share Modal */}
+        {shareModalTrip && user?.accessToken && (
+          <ShareModal
+            isOpen={!!shareModalTrip}
+            onClose={() => setShareModalTrip(null)}
+            fileId={shareModalTrip.driveFileId}
+            tripName={shareModalTrip.name}
+            accessToken={user.accessToken}
+          />
+        )}
+        </div>
+      )}
       
-      <footer className="app-footer">
-        <p>Your data is stored securely in your own Google Drive</p>
-      </footer>
-
-      {/* Create Trip Modal */}
-      <CreateTripModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSave={handleCreateTrip}
-        saving={saving}
-      />
-
-      {/* Share Modal */}
+      {/* Share Modal (available from both views) */}
       {shareModalTrip && user?.accessToken && (
         <ShareModal
           isOpen={!!shareModalTrip}
@@ -324,7 +323,6 @@ function App() {
           accessToken={user.accessToken}
         />
       )}
-      </div>
     </GoogleMapsProvider>
   )
 }
