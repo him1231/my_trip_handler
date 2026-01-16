@@ -143,12 +143,9 @@ export const TripDetailView = ({
 
     const performSync = async () => {
       try {
-        const mapDiv = document.createElement('div');
-        const map = new google.maps.Map(mapDiv);
-        const placesService = new google.maps.places.PlacesService(map);
         const geocoder = new google.maps.Geocoder();
 
-        const places = await importPlacesFromUrl(syncConfig.listUrl, placesService, geocoder);
+        const places = await importPlacesFromUrl(syncConfig.listUrl, geocoder);
         
         // Find new places
         const existingPlaceIds = new Set(

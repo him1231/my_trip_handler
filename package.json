@@ -11,7 +11,11 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:auto": "bash scripts/deploy.sh \"chore: auto-deploy\"",
+    "deploy:feature": "bash scripts/deploy-feature.sh",
+    "deploy:feature:auto": "bash scripts/deploy-feature.sh \"feature/update\" \"chore: auto-deploy\""
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",

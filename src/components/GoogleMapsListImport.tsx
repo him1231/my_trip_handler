@@ -65,22 +65,33 @@ export const GoogleMapsListImport = ({
       return;
     }
 
+    // Check if it's a short URL
+    const isShortUrl = url.includes('maps.app.goo.gl/') || url.includes('goo.gl/maps/');
+    if (isShortUrl) {
+      setError(
+        'Short URLs (maps.app.goo.gl) are not directly supported due to browser security restrictions. ' +
+        'Please get the full URL instead:\n\n' +
+        '1. Open the link in your browser\n' +
+        '2. Copy the full URL from the address bar\n' +
+        '3. Paste that full URL here\n\n' +
+        'Alternatively, share the list/place again and choose "Copy link" to get the full URL.'
+      );
+      return;
+    }
+
     setImporting(true);
     setError(null);
     setImportedPlaces([]);
     setSelectedPlaces(new Set());
 
     try {
-      // Create PlacesService and Geocoder
-      const mapDiv = document.createElement('div');
-      const map = new google.maps.Map(mapDiv);
-      const placesService = new google.maps.places.PlacesService(map);
+      // Create Geocoder (no longer need PlacesService)
       const geocoder = new google.maps.Geocoder();
 
-      const places = await importPlacesFromUrl(url, placesService, geocoder);
+      const places = await importPlacesFromUrl(url, geocoder);
 
       if (places.length === 0) {
-        setError('No places found in the URL. Make sure it\'s a valid Google Maps share link.');
+        setError('No places found in the URL. Make sure it\'s a valid Google Maps share link. If you\'re using a short URL, please use the full URL instead.');
         return;
       }
 
@@ -168,12 +179,9 @@ export const GoogleMapsListImport = ({
         throw new Error('Google Maps API is not loaded yet');
       }
 
-      const mapDiv = document.createElement('div');
-      const map = new google.maps.Map(mapDiv);
-      const placesService = new google.maps.places.PlacesService(map);
       const geocoder = new google.maps.Geocoder();
 
-      const places = await importPlacesFromUrl(syncConfig.listUrl, placesService, geocoder);
+      const places = await importPlacesFromUrl(syncConfig.listUrl, geocoder);
 
       // Find new places that aren't in existing destinations
       const existingPlaceIds = new Set(
