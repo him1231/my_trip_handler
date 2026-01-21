@@ -3,6 +3,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  deleteDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -235,4 +236,8 @@ export const updateMemberRole = async (tripId: string, uid: string, role: TripRo
     [memberKey]: role,
     updatedAt: serverTimestamp()
   });
+};
+
+export const deleteTrip = async (tripId: string) => {
+  await deleteDoc(doc(tripsCollection, tripId));
 };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import DaySelector from "../components/DaySelector";
 import InviteLink from "../components/InviteLink";
 import ItineraryDay from "../components/ItineraryDay";
@@ -10,6 +10,7 @@ import {
   addItem,
   addLocation,
   createDay,
+  deleteTrip,
   subscribeDays,
   subscribeItems,
   subscribeLocations,
@@ -19,6 +20,7 @@ import { ItineraryDay as DayType, ItineraryItem, Trip, TripLocation } from "../l
 
 const TripPage = () => {
   const { tripId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [locations, setLocations] = useState<TripLocation[]>([]);
@@ -88,6 +90,7 @@ const TripPage = () => {
   }, [trip, user]);
 
   const canEdit = role === "owner" || role === "editor";
+  const isOwner = role === "owner";
 
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? null;
 
@@ -117,6 +120,18 @@ const TripPage = () => {
       ...payload,
       createdBy: user.uid
     });
+  };
+
+  const handleDeleteTrip = async () => {
+    if (!tripId || !isOwner) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this trip? This cannot be undone.");
+    if (!confirmed) {
+      return;
+    }
+    await deleteTrip(tripId);
+    navigate("/");
   };
 
   const handleSaveLocation = async () => {
@@ -156,9 +171,16 @@ const TripPage = () => {
         <p className="muted">
           Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
         </p>
-        {trip.inviteToken && (role === "owner" || role === "editor") ? (
-          <InviteLink token={trip.inviteToken} />
-        ) : null}
+        <div className="inline-actions">
+          {trip.inviteToken && (role === "owner" || role === "editor") ? (
+            <InviteLink token={trip.inviteToken} />
+          ) : null}
+          {isOwner ? (
+            <button className="secondary-button" onClick={handleDeleteTrip}>
+              Delete trip
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="inline-actions">
