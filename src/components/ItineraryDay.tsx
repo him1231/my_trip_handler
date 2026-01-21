@@ -1,4 +1,5 @@
 import { ItineraryDay as DayType, ItineraryItem as ItemType } from "../lib/types";
+import { Card } from "./ui/card";
 import ItineraryItem from "./ItineraryItem";
 import ItineraryItemForm from "./ItineraryItemForm";
 
@@ -16,23 +17,25 @@ type ItineraryDayProps = {
 
 const ItineraryDay = ({ day, items, canEdit, onAddItem }: ItineraryDayProps) => {
   return (
-    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <Card className="flex flex-col gap-4 p-5">
       <div>
-        <h3>
+        <h3 className="text-lg font-semibold">
           Day {day.dayNumber} · {day.date.toLocaleDateString()}
         </h3>
-        {day.note ? <p className="muted">{day.note}</p> : null}
+        {day.note ? <p className="text-sm text-muted-foreground">{day.note}</p> : null}
       </div>
 
       <ItineraryItemForm dayDate={day.date} canEdit={canEdit} onSave={onAddItem} />
 
-      <div className="list">
+      <div className="flex flex-col gap-3">
         {items.map((item) => (
           <ItineraryItem key={item.id} item={item} />
         ))}
-        {!items.length ? <p className="muted">No items yet. Add the first activity.</p> : null}
+        {!items.length ? (
+          <p className="text-sm text-muted-foreground">No items yet. Add the first activity.</p>
+        ) : null}
       </div>
-    </div>
+    </Card>
   );
 };
 

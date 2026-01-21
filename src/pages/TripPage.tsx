@@ -5,6 +5,11 @@ import InviteLink from "../components/InviteLink";
 import ItineraryDay from "../components/ItineraryDay";
 import MapPanel from "../components/MapPanel";
 import TabButton from "../components/TabButton";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 import { useAuth } from "../lib/auth";
 import {
   addItem,
@@ -157,33 +162,33 @@ const TripPage = () => {
   };
 
   if (!tripId) {
-    return <p className="muted">Missing trip id.</p>;
+    return <p className="text-sm text-muted-foreground">Missing trip id.</p>;
   }
 
   if (!trip) {
-    return <p className="muted">Loading trip details...</p>;
+    return <p className="text-sm text-muted-foreground">Loading trip details...</p>;
   }
 
   return (
-    <div className="page-container">
-      <div className="card">
-        <h2>{trip.title}</h2>
-        <p className="muted">
+    <div className="flex flex-col gap-6">
+      <Card className="p-6">
+        <h2 className="text-2xl font-semibold">{trip.title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
         </p>
-        <div className="inline-actions">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           {trip.inviteToken && (role === "owner" || role === "editor") ? (
             <InviteLink token={trip.inviteToken} />
           ) : null}
           {isOwner ? (
-            <button className="secondary-button" onClick={handleDeleteTrip}>
+            <Button variant="outline" onClick={handleDeleteTrip}>
               Delete trip
-            </button>
+            </Button>
           ) : null}
         </div>
-      </div>
+      </Card>
 
-      <div className="inline-actions">
+      <div className="flex flex-wrap items-center gap-3">
         <TabButton label="Itinerary" active={activeTab === "itinerary"} onClick={() => setActiveTab("itinerary")} />
         <TabButton label="Map" active={activeTab === "map"} onClick={() => setActiveTab("map")} />
         <TabButton label="Expenses" active={activeTab === "expenses"} onClick={() => setActiveTab("expenses")} />
@@ -191,7 +196,7 @@ const TripPage = () => {
       </div>
 
       {activeTab === "itinerary" ? (
-        <div className="split-view">
+        <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr]">
           <DaySelector
             days={days}
             selectedDayId={selectedDayId}
@@ -202,91 +207,93 @@ const TripPage = () => {
           {selectedDay ? (
             <ItineraryDay day={selectedDay} items={items} canEdit={canEdit} onAddItem={handleAddItem} />
           ) : (
-            <div className="card">
-              <h3>No day selected</h3>
-              <p className="muted">Add a day to start planning your itinerary.</p>
-            </div>
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold">No day selected</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Add a day to start planning your itinerary.
+              </p>
+            </Card>
           )}
         </div>
       ) : null}
 
       {activeTab === "map" ? (
-        <div className="split-view">
-          <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr]">
+          <Card className="flex flex-col gap-4 p-5">
             <div>
-              <h3>Locations</h3>
-              <p className="muted">Click the map to add a location.</p>
+              <h3 className="text-lg font-semibold">Locations</h3>
+              <p className="text-sm text-muted-foreground">Click the map to add a location.</p>
             </div>
 
             {pending ? (
-              <div className="card" style={{ background: "#f8fafc" }}>
-                <h4>Selected spot</h4>
-                <p className="muted">
+              <Card className="bg-slate-50 p-4">
+                <h4 className="text-base font-semibold">Selected spot</h4>
+                <p className="text-sm text-muted-foreground">
                   {pending.lat.toFixed(4)}, {pending.lng.toFixed(4)}
                 </p>
-                <div className="list">
-                  <input
+                <div className="mt-3 flex flex-col gap-3">
+                  <Input
                     type="text"
                     placeholder="Location name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />
-                  <textarea
+                  <Textarea
                     placeholder="Notes for the group"
                     rows={3}
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                   />
-                  <div className="inline-actions">
-                    <button
-                      className="primary-button"
-                      onClick={handleSaveLocation}
-                      disabled={!canEdit || saving}
-                    >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button onClick={handleSaveLocation} disabled={!canEdit || saving}>
                       {saving ? "Saving..." : "Add to trip"}
-                    </button>
-                    <button className="secondary-button" onClick={() => setPending(null)}>
+                    </Button>
+                    <Button variant="outline" onClick={() => setPending(null)}>
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </Card>
             ) : (
-              <p className="muted">Select a spot on the map to add it here.</p>
+              <p className="text-sm text-muted-foreground">Select a spot on the map to add it here.</p>
             )}
 
-            <div className="list">
+            <div className="flex flex-col gap-3">
               {locations.map((location) => (
-                <div key={location.id} className="card" style={{ padding: 12 }}>
-                  <div className="inline-actions">
-                    <strong>{location.name}</strong>
-                    <span className="tag">
+                <Card key={location.id} className="p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="text-sm font-semibold">{location.name}</strong>
+                    <Badge variant="outline">
                       {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
-                    </span>
+                    </Badge>
                   </div>
-                  {location.note ? <p className="muted">{location.note}</p> : null}
-                  {location.address ? <p className="muted">{location.address}</p> : null}
-                </div>
+                  {location.note ? (
+                    <p className="mt-2 text-sm text-muted-foreground">{location.note}</p>
+                  ) : null}
+                  {location.address ? (
+                    <p className="text-sm text-muted-foreground">{location.address}</p>
+                  ) : null}
+                </Card>
               ))}
             </div>
-          </div>
+          </Card>
 
           <MapPanel locations={locations} onSelect={setPending} canEdit={canEdit} />
         </div>
       ) : null}
 
       {activeTab === "expenses" ? (
-        <div className="card">
-          <h3>Expenses</h3>
-          <p className="muted">Expense tracking is coming next.</p>
-        </div>
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold">Expenses</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Expense tracking is coming next.</p>
+        </Card>
       ) : null}
 
       {activeTab === "journal" ? (
-        <div className="card">
-          <h3>Journal</h3>
-          <p className="muted">Trip journaling is coming next.</p>
-        </div>
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold">Journal</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Trip journaling is coming next.</p>
+        </Card>
       ) : null}
     </div>
   );

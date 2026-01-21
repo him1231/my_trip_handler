@@ -1,3 +1,5 @@
+import { Button } from "./ui/button";
+
 type TabButtonProps = {
   label: string;
   active: boolean;
@@ -6,9 +8,9 @@ type TabButtonProps = {
 
 const TabButton = ({ label, active, onClick }: TabButtonProps) => {
   return (
-    <button className={active ? "primary-button" : "secondary-button"} onClick={onClick}>
+    <Button variant={active ? "default" : "outline"} onClick={onClick}>
       {label}
-    </button>
+    </Button>
   );
 };
 

@@ -1,6 +1,9 @@
 import { Loader } from "@googlemaps/js-api-loader";
 import { useEffect, useRef } from "react";
 import { TripLocation } from "../lib/types";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
 
 type MapPanelProps = {
   locations: TripLocation[];
@@ -91,20 +94,20 @@ const MapPanel = ({ locations, onSelect, canEdit }: MapPanelProps) => {
   }, [locations]);
 
   return (
-    <div className="map-panel card">
-      <div className="inline-actions">
-        <input
+    <Card className="flex h-full flex-col gap-3 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
           ref={inputRef}
           type="text"
           placeholder={canEdit ? "Search places or click on map" : "View-only map"}
           disabled={!canEdit}
         />
-        {canEdit ? <span className="tag">Editor</span> : <span className="tag">Viewer</span>}
+        {canEdit ? <Badge variant="secondary">Editor</Badge> : <Badge variant="outline">Viewer</Badge>}
       </div>
-      <div className="map-container">
-        <div ref={mapRef} className="map-canvas" />
+      <div className="flex-1 overflow-hidden rounded-xl border">
+        <div ref={mapRef} className="min-h-[400px] w-full" />
       </div>
-    </div>
+    </Card>
   );
 };
 

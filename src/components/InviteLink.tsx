@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { buildInviteLink } from "../lib/url";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 type InviteLinkProps = {
   token: string;
@@ -20,11 +22,11 @@ const InviteLink = ({ token }: InviteLinkProps) => {
   };
 
   return (
-    <div className="invite-link">
-      <input type="text" readOnly value={link} />
-      <button className="secondary-button" onClick={handleCopy}>
+    <div className="flex flex-wrap items-center gap-2">
+      <Input type="text" readOnly value={link} className="min-w-[240px]" />
+      <Button variant="outline" onClick={handleCopy}>
         {copied ? "Copied" : "Copy"}
-      </button>
+      </Button>
     </div>
   );
 };

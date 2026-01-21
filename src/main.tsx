@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./lib/auth";
-import "./styles/global.css";
+import "./styles/globals.css";
 
 const base = import.meta.env.VITE_BASE_PATH || "/";
 

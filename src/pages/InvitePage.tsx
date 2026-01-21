@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
 import { useAuth } from "../lib/auth";
 import { ensureMembershipByToken } from "../lib/firestore";
 
@@ -36,35 +38,35 @@ const InvitePage = () => {
   }, [token, user, navigate]);
 
   if (loading) {
-    return <p className="muted">Checking your account...</p>;
+    return <p className="text-sm text-muted-foreground">Checking your account...</p>;
   }
 
   if (!user) {
     return (
-      <div className="card">
-        <h2>Join this trip</h2>
-        <p className="muted">Sign in with Google to accept the invite.</p>
-        <button className="primary-button" onClick={signIn}>
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold">Join this trip</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Sign in with Google to accept the invite.</p>
+        <Button className="mt-4" onClick={signIn}>
           Sign in
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
 
   if (status === "error") {
     return (
-      <div className="card">
-        <h2>Invite error</h2>
-        <p className="muted">{error}</p>
-      </div>
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold">Invite error</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+      </Card>
     );
   }
 
   return (
-    <div className="card">
-      <h2>Joining trip...</h2>
-      <p className="muted">We are adding you to the trip now.</p>
-    </div>
+    <Card className="p-6">
+      <h2 className="text-xl font-semibold">Joining trip...</h2>
+      <p className="mt-2 text-sm text-muted-foreground">We are adding you to the trip now.</p>
+    </Card>
   );
 };
 

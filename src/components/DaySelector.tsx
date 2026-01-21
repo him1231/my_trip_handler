@@ -1,4 +1,6 @@
 import { ItineraryDay } from "../lib/types";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
 type DaySelectorProps = {
   days: ItineraryDay[];
@@ -13,29 +15,31 @@ const formatDate = (date: Date) =>
 
 const DaySelector = ({ days, selectedDayId, onSelect, onAdd, canEdit }: DaySelectorProps) => {
   return (
-    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="inline-actions" style={{ justifyContent: "space-between" }}>
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h3>Days</h3>
-          <p className="muted">Plan each day of your trip.</p>
+          <h3 className="text-lg font-semibold">Days</h3>
+          <p className="text-sm text-muted-foreground">Plan each day of your trip.</p>
         </div>
-        <button className="secondary-button" onClick={onAdd} disabled={!canEdit}>
+        <Button variant="outline" onClick={onAdd} disabled={!canEdit}>
           Add day
-        </button>
+        </Button>
       </div>
-      <div className="list">
+      <div className="flex flex-col gap-2">
         {days.map((day) => (
-          <button
+          <Button
             key={day.id}
-            className={selectedDayId === day.id ? "primary-button" : "secondary-button"}
+            variant={selectedDayId === day.id ? "default" : "outline"}
             onClick={() => onSelect(day.id)}
           >
             Day {day.dayNumber} · {formatDate(day.date)}
-          </button>
+          </Button>
         ))}
-        {!days.length ? <p className="muted">No days yet. Add the first day.</p> : null}
+        {!days.length ? (
+          <p className="text-sm text-muted-foreground">No days yet. Add the first day.</p>
+        ) : null}
       </div>
-    </div>
+    </Card>
   );
 };
 

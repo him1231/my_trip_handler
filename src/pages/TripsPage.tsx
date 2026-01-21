@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TripList from "../components/TripList";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
 import { useAuth } from "../lib/auth";
 import { createTrip, subscribeTrips } from "../lib/firestore";
 import { Trip } from "../lib/types";
@@ -41,47 +44,45 @@ const TripsPage = () => {
   };
 
   if (loading) {
-    return <p className="muted">Loading your workspace...</p>;
+    return <p className="text-sm text-muted-foreground">Loading your workspace...</p>;
   }
 
   if (!user) {
     return (
-      <div className="card">
-        <h2>Welcome</h2>
-        <p className="muted">
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold">Welcome</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           Sign in to start planning trips with your friends. You can invite co-editors with a
           shareable link.
         </p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="page-container">
-      <div className="card">
-        <h2>Create a new trip</h2>
-        <div className="inline-actions">
-          <input
+    <div className="flex flex-col gap-6">
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold">Create a new trip</h2>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Input
             type="text"
             placeholder="Summer in Seoul"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
-          <button
-            className="primary-button"
-            onClick={handleCreate}
-            disabled={creating || !title.trim()}
-          >
+          <Button onClick={handleCreate} disabled={creating || !title.trim()}>
             {creating ? "Creating..." : "Create trip"}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="card">
-        <h3>Your trips</h3>
-        {error ? <p className="muted">{error}</p> : null}
-        <TripList trips={trips} />
-      </div>
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold">Your trips</h3>
+        {error ? <p className="mt-2 text-sm text-muted-foreground">{error}</p> : null}
+        <div className="mt-4">
+          <TripList trips={trips} />
+        </div>
+      </Card>
     </div>
   );
 };

@@ -1,7 +1,9 @@
-import { ItineraryItem } from "../lib/types";
+import type { ItineraryItem as ItineraryItemType } from "../lib/types";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
 
 type ItineraryItemProps = {
-  item: ItineraryItem;
+  item: ItineraryItemType;
 };
 
 const formatTime = (date?: Date) => {
@@ -13,14 +15,14 @@ const formatTime = (date?: Date) => {
 
 const ItineraryItem = ({ item }: ItineraryItemProps) => {
   return (
-    <div className="card" style={{ padding: 12 }}>
-      <div className="inline-actions">
-        <strong>{item.title}</strong>
-        <span className="tag">{item.type}</span>
-        {item.startTime ? <span className="tag">{formatTime(item.startTime)}</span> : null}
+    <Card className="p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <strong className="text-sm font-semibold">{item.title}</strong>
+        <Badge variant="secondary">{item.type}</Badge>
+        {item.startTime ? <Badge variant="outline">{formatTime(item.startTime)}</Badge> : null}
       </div>
-      {item.note ? <p className="muted">{item.note}</p> : null}
-    </div>
+      {item.note ? <p className="mt-2 text-sm text-muted-foreground">{item.note}</p> : null}
+    </Card>
   );
 };
 
