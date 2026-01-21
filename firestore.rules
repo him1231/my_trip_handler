@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function tripDoc(tripId) {
+      return get(/databases/$(database)/documents/trips/$(tripId));
+    }
+
+    function isTripMember(tripId) {
+      return isSignedIn() && request.auth.uid in tripDoc(tripId).data.memberIds;
+    }
+
+    function isTripMemberFromResource() {
+      return isSignedIn() && request.auth.uid in resource.data.memberIds;
+    }
+
+    function memberRole(tripId) {
+      return tripDoc(tripId).data.members[request.auth.uid].role;
+    }
+
+    function canEditTrip(tripId) {
+      return isTripMember(tripId) && (memberRole(tripId) in ['owner', 'editor']);
+    }
+
+    function isJoiningTrip(tripId) {
+      return isSignedIn()
+        && !(request.auth.uid in tripDoc(tripId).data.memberIds)
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.inviteToken == tripDoc(tripId).data.inviteToken
+        && request.resource.data.members[request.auth.uid].role in ['editor', 'viewer']
+        && request.resource.data.memberIds.size() == tripDoc(tripId).data.memberIds.size() + 1;
+    }
+
+    match /trips/{tripId} {
+      allow read: if isTripMember(tripId) || isTripMemberFromResource();
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.members[request.auth.uid].role == 'owner';
+
+      allow update: if canEditTrip(tripId) || isJoiningTrip(tripId);
+
+      allow delete: if isTripMember(tripId) && memberRole(tripId) == 'owner';
+
+      match /locations/{locationId} {
+        allow read: if isTripMember(tripId);
+        allow create, update, delete: if canEditTrip(tripId);
+      }
+    }
+  }
+}
