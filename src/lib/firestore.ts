@@ -31,6 +31,12 @@ const tripsCollection = collection(db, "trips");
 const mapTrip = (id: string, data: any): Trip => ({
   id,
   title: data.title,
+  description: data.description,
+  destination: data.destination,
+  startDate: data.startDate?.toDate?.() ?? undefined,
+  endDate: data.endDate?.toDate?.() ?? undefined,
+  timezone: data.timezone,
+  template: data.template,
   ownerId: data.ownerId,
   inviteToken: data.inviteToken,
   memberIds: data.memberIds ?? [],
@@ -38,6 +44,15 @@ const mapTrip = (id: string, data: any): Trip => ({
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
+
+type TripCreateOptions = {
+  description?: string;
+  destination?: string;
+  startDate?: Date;
+  endDate?: Date;
+  timezone?: string;
+  template?: string;
+};
 
 const mapDay = (id: string, tripId: string, data: any): ItineraryDay => ({
   id,
@@ -65,7 +80,12 @@ const mapItem = (id: string, tripId: string, dayId: string, data: any): Itinerar
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
 
-export const createTrip = async (title: string, user: User) => {
+export const createTrip = async (
+  titleOrPayload: string | ({ title: string } & TripCreateOptions),
+  user: User,
+  options?: TripCreateOptions
+) => {
+  const payload = typeof titleOrPayload === "string" ? { title: titleOrPayload, ...options } : titleOrPayload;
   const tripRef = doc(tripsCollection);
   const inviteToken = createInviteToken();
   const member: TripMember = {
@@ -74,8 +94,14 @@ export const createTrip = async (title: string, user: User) => {
     photoURL: user.photoURL
   };
 
-  await setDoc(tripRef, {
-    title,
+  const tripPayload = {
+    title: payload.title,
+    description: payload.description ?? undefined,
+    destination: payload.destination ?? undefined,
+    startDate: payload.startDate ?? undefined,
+    endDate: payload.endDate ?? undefined,
+    timezone: payload.timezone ?? undefined,
+    template: payload.template ?? "custom",
     ownerId: user.uid,
     inviteToken,
     memberIds: [user.uid],
@@ -84,9 +110,52 @@ export const createTrip = async (title: string, user: User) => {
     },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
+  };
+
+  Object.keys(tripPayload).forEach((key) => {
+    if ((tripPayload as Record<string, unknown>)[key] === undefined) {
+      delete (tripPayload as Record<string, unknown>)[key];
+    }
   });
 
+  await setDoc(tripRef, tripPayload);
+
   return tripRef.id;
+};
+
+export const createTripWithDays = async (
+  payload: { title: string } & TripCreateOptions,
+  user: User,
+  autoCreateDays: boolean
+) => {
+  const tripId = await createTrip(payload, user);
+
+  if (autoCreateDays && payload.startDate && payload.endDate) {
+    const start = new Date(payload.startDate);
+    const end = new Date(payload.endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    const totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (totalDays > 0 && totalDays <= 366) {
+      const daysRef = collection(db, "trips", tripId, "days");
+      for (let index = 0; index < totalDays; index += 1) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        await addDoc(daysRef, {
+          date,
+          dayNumber: index + 1,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      await updateDoc(doc(tripsCollection, tripId), {
+        updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  return tripId;
 };
 
 export const subscribeTrips = (

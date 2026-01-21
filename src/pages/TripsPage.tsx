@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CreateTripModeToggle from "../components/CreateTripModeToggle";
+import CreateTripWizard from "../components/CreateTripWizard";
+import QuickCreateTrip from "../components/QuickCreateTrip";
 import TripList from "../components/TripList";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
-import { Input } from "../components/ui/input";
 import { useAuth } from "../lib/auth";
-import { createTrip, subscribeTrips } from "../lib/firestore";
+import { createTrip, createTripWithDays, subscribeTrips } from "../lib/firestore";
 import { Trip } from "../lib/types";
 
 const TripsPage = () => {
   const { user, loading } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [title, setTitle] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [createMode, setCreateMode] = useState<"wizard" | "quick">("wizard");
+  const [showCreator, setShowCreator] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -29,18 +31,41 @@ const TripsPage = () => {
     return unsubscribe;
   }, [user]);
 
-  const handleCreate = async () => {
-    if (!user || !title.trim()) {
+  const handleQuickCreate = async (title: string) => {
+    if (!user) {
       return;
     }
-    setCreating(true);
-    try {
-      const tripId = await createTrip(title.trim(), user);
-      setTitle("");
-      navigate(`/trip/${tripId}`);
-    } finally {
-      setCreating(false);
+    const tripId = await createTrip(title, user);
+    navigate(`/trip/${tripId}`);
+  };
+
+  const handleWizardCreate = async (values: {
+    title: string;
+    description?: string;
+    destination?: string;
+    template?: string;
+    startDate?: Date;
+    endDate?: Date;
+    timezone?: string;
+    autoCreateDays: boolean;
+  }) => {
+    if (!user) {
+      return;
     }
+    const tripId = await createTripWithDays(
+      {
+        title: values.title,
+        description: values.description,
+        destination: values.destination,
+        template: values.template,
+        startDate: values.startDate,
+        endDate: values.endDate,
+        timezone: values.timezone
+      },
+      user,
+      values.autoCreateDays
+    );
+    navigate(`/trip/${tripId}`);
   };
 
   if (loading) {
@@ -62,22 +87,31 @@ const TripsPage = () => {
   return (
     <div className="flex flex-col gap-6">
       <Card className="p-6">
-        <h2 className="text-xl font-semibold">Create a new trip</h2>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Input
-            type="text"
-            placeholder="Summer in Seoul"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <Button onClick={handleCreate} disabled={creating || !title.trim()}>
-            {creating ? "Creating..." : "Create trip"}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold">Your trips</h3>
+            <p className="text-sm text-muted-foreground">Create and manage your trip plans.</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowCreator((prev) => !prev)}
+            aria-label="Create a new trip"
+          >
+            + New trip
           </Button>
         </div>
-      </Card>
 
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold">Your trips</h3>
+        {showCreator ? (
+          <div className="mt-6 flex flex-col gap-4">
+            <CreateTripModeToggle mode={createMode} onChange={setCreateMode} />
+            {createMode === "wizard" ? (
+              <CreateTripWizard onCreate={handleWizardCreate} />
+            ) : (
+              <QuickCreateTrip onCreate={handleQuickCreate} />
+            )}
+          </div>
+        ) : null}
+
         {error ? <p className="mt-2 text-sm text-muted-foreground">{error}</p> : null}
         <div className="mt-4">
           <TripList trips={trips} />

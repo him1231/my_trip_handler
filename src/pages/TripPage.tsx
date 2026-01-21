@@ -278,7 +278,12 @@ const TripPage = () => {
             </div>
           </Card>
 
-          <MapPanel locations={locations} onSelect={setPending} canEdit={canEdit} />
+          <MapPanel
+            locations={locations}
+            onSelect={setPending}
+            canEdit={canEdit}
+            destination={trip.destination}
+          />
         </div>
       ) : null}
 

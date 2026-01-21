@@ -9,6 +9,12 @@ export type TripMember = {
 export type Trip = {
   id: string;
   title: string;
+  description?: string;
+  destination?: string;
+  startDate?: Date;
+  endDate?: Date;
+  timezone?: string;
+  template?: string;
   ownerId: string;
   inviteToken: string;
   memberIds: string[];

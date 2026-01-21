@@ -9,13 +9,15 @@ type MapPanelProps = {
   locations: TripLocation[];
   onSelect: (selection: { lat: number; lng: number; name?: string; address?: string }) => void;
   canEdit: boolean;
+  destination?: string;
 };
 
-const MapPanel = ({ locations, onSelect, canEdit }: MapPanelProps) => {
+const MapPanel = ({ locations, onSelect, canEdit, destination }: MapPanelProps) => {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const lastGeocodedDestinationRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,6 +76,25 @@ const MapPanel = ({ locations, onSelect, canEdit }: MapPanelProps) => {
       markersRef.current = [];
     };
   }, [canEdit, onSelect]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !destination) {
+      return;
+    }
+    if (lastGeocodedDestinationRef.current === destination) {
+      return;
+    }
+
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: destination }, (results, status) => {
+      if (status !== "OK" || !results?.[0]?.geometry?.location || !mapInstanceRef.current) {
+        return;
+      }
+      mapInstanceRef.current.setCenter(results[0].geometry.location);
+      mapInstanceRef.current.setZoom(10);
+      lastGeocodedDestinationRef.current = destination;
+    });
+  }, [destination]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) {
