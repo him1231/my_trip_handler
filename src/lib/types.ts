@@ -11,6 +11,7 @@ export type Trip = {
   title: string;
   description?: string;
   destination?: string;
+  destinationPlaceId?: string;
   startDate?: Date;
   endDate?: Date;
   timezone?: string;
@@ -77,6 +78,19 @@ export type ItineraryItem = {
   locationId?: string;
   details?: ItineraryItemDetails;
   note?: string;
+  createdBy: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type TripBooking = {
+  id: string;
+  tripId: string;
+  type: "flight" | "hotel";
+  title: string;
+  date: Date;
+  startTime?: Date;
+  details?: ItineraryItemDetails;
   createdBy: string;
   createdAt?: Date;
   updatedAt?: Date;

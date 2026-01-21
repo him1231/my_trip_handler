@@ -60,6 +60,11 @@ service cloud.firestore {
           allow create, update, delete: if canEditTrip(tripId);
         }
       }
+
+      match /bookings/{bookingId} {
+        allow read: if isTripMember(tripId);
+        allow create, update, delete: if canEditTrip(tripId);
+      }
     }
   }
 }

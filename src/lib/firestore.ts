@@ -21,6 +21,7 @@ import {
   ItineraryDay,
   ItineraryItem,
   Trip,
+  TripBooking,
   TripLocation,
   TripMember,
   TripRole
@@ -33,6 +34,7 @@ const mapTrip = (id: string, data: any): Trip => ({
   title: data.title,
   description: data.description,
   destination: data.destination,
+  destinationPlaceId: data.destinationPlaceId,
   startDate: data.startDate?.toDate?.() ?? undefined,
   endDate: data.endDate?.toDate?.() ?? undefined,
   timezone: data.timezone,
@@ -79,6 +81,42 @@ const mapItem = (id: string, tripId: string, dayId: string, data: any): Itinerar
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
+
+const mapBooking = (id: string, tripId: string, data: any): TripBooking => ({
+  id,
+  tripId,
+  type: data.type,
+  title: data.title,
+  date: data.date?.toDate?.() ?? new Date(),
+  startTime: data.startTime?.toDate?.() ?? undefined,
+  details: data.details,
+  createdBy: data.createdBy,
+  createdAt: data.createdAt?.toDate?.() ?? undefined,
+  updatedAt: data.updatedAt?.toDate?.() ?? undefined
+});
+
+const removeUndefined = <T>(value: T): T => {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => removeUndefined(entry)) as T;
+  }
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
+      if (entry === undefined) {
+        return;
+      }
+      result[key] = removeUndefined(entry);
+    });
+    return result as T;
+  }
+  return value;
+};
 
 export const createTrip = async (
   titleOrPayload: string | ({ title: string } & TripCreateOptions),
@@ -222,7 +260,7 @@ export const subscribeDays = (
   onChange: (days: ItineraryDay[]) => void
 ) => {
   const daysRef = collection(db, "trips", tripId, "days");
-  const q = query(daysRef, orderBy("dayNumber", "asc"));
+  const q = query(daysRef, orderBy("date", "asc"));
   return onSnapshot(q, (snapshot) => {
     const days = snapshot.docs.map((docSnap) => mapDay(docSnap.id, tripId, docSnap.data()));
     onChange(days);
@@ -231,7 +269,7 @@ export const subscribeDays = (
 
 export const createDay = async (tripId: string, dayNumber: number, date: Date) => {
   const daysRef = collection(db, "trips", tripId, "days");
-  await addDoc(daysRef, {
+  const dayDoc = await addDoc(daysRef, {
     date,
     dayNumber,
     createdAt: serverTimestamp(),
@@ -240,6 +278,7 @@ export const createDay = async (tripId: string, dayNumber: number, date: Date) =
   await updateDoc(doc(tripsCollection, tripId), {
     updatedAt: serverTimestamp()
   });
+  return dayDoc.id;
 };
 
 export const subscribeItems = (
@@ -255,6 +294,18 @@ export const subscribeItems = (
   });
 };
 
+export const subscribeBookings = (
+  tripId: string,
+  onChange: (bookings: TripBooking[]) => void
+) => {
+  const bookingsRef = collection(db, "trips", tripId, "bookings");
+  const q = query(bookingsRef, orderBy("date", "asc"));
+  return onSnapshot(q, (snapshot) => {
+    const bookings = snapshot.docs.map((docSnap) => mapBooking(docSnap.id, tripId, docSnap.data()));
+    onChange(bookings);
+  });
+};
+
 export const addItem = async (
   tripId: string,
   dayId: string,
@@ -262,10 +313,70 @@ export const addItem = async (
 ) => {
   const itemsRef = collection(db, "trips", tripId, "days", dayId, "items");
   await addDoc(itemsRef, {
-    ...item,
+    ...removeUndefined(item),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const addBooking = async (
+  tripId: string,
+  booking: Omit<TripBooking, "id" | "tripId" | "createdAt" | "updatedAt">
+) => {
+  const bookingsRef = collection(db, "trips", tripId, "bookings");
+  await addDoc(bookingsRef, {
+    ...removeUndefined(booking),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const updateBooking = async (
+  tripId: string,
+  bookingId: string,
+  booking: Partial<Omit<TripBooking, "id" | "tripId" | "createdAt">>
+) => {
+  const bookingRef = doc(db, "trips", tripId, "bookings", bookingId);
+  await updateDoc(bookingRef, {
+    ...removeUndefined(booking),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteBooking = async (tripId: string, bookingId: string) => {
+  await deleteDoc(doc(db, "trips", tripId, "bookings", bookingId));
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const updateItem = async (
+  tripId: string,
+  dayId: string,
+  itemId: string,
+  item: Partial<Omit<ItineraryItem, "id" | "tripId" | "dayId" | "createdAt">>
+) => {
+  const itemRef = doc(db, "trips", tripId, "days", dayId, "items", itemId);
+  await updateDoc(itemRef, {
+    ...removeUndefined(item),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteDay = async (tripId: string, dayId: string) => {
+  await deleteDoc(doc(db, "trips", tripId, "days", dayId));
   await updateDoc(doc(tripsCollection, tripId), {
     updatedAt: serverTimestamp()
   });
@@ -309,4 +420,11 @@ export const updateMemberRole = async (tripId: string, uid: string, role: TripRo
 
 export const deleteTrip = async (tripId: string) => {
   await deleteDoc(doc(tripsCollection, tripId));
+};
+
+export const updateTripDestinationPlaceId = async (tripId: string, placeId: string) => {
+  await updateDoc(doc(tripsCollection, tripId), {
+    destinationPlaceId: placeId,
+    updatedAt: serverTimestamp()
+  });
 };

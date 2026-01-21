@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DaySelector from "../components/DaySelector";
-import InviteLink from "../components/InviteLink";
+import ShareDialog from "../components/ShareDialog";
 import ItineraryDay from "../components/ItineraryDay";
 import MapPanel from "../components/MapPanel";
 import TabButton from "../components/TabButton";
+import TripBookingsTab from "../components/TripBookingsTab";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -14,12 +15,17 @@ import { useAuth } from "../lib/auth";
 import {
   addItem,
   addLocation,
+  addBooking,
   createDay,
+  deleteDay,
+  deleteBooking,
   deleteTrip,
   subscribeDays,
   subscribeItems,
   subscribeLocations,
-  subscribeTrip
+  subscribeTrip,
+  updateTripDestinationPlaceId,
+  updateBooking
 } from "../lib/firestore";
 import { ItineraryDay as DayType, ItineraryItem, Trip, TripLocation } from "../lib/types";
 
@@ -38,7 +44,7 @@ const TripPage = () => {
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "expenses" | "journal">("itinerary");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal">("itinerary");
 
   useEffect(() => {
     if (!tripId) {
@@ -61,16 +67,33 @@ const TripPage = () => {
       return;
     }
     const unsubscribe = subscribeDays(tripId, (nextDays) => {
-      setDays(nextDays);
-      if (!selectedDayId && nextDays.length) {
-        setSelectedDayId(nextDays[0].id);
+      const startDate = trip?.startDate ? new Date(trip.startDate) : null;
+      if (startDate) {
+        startDate.setHours(0, 0, 0, 0);
       }
-      if (selectedDayId && !nextDays.find((day) => day.id === selectedDayId)) {
-        setSelectedDayId(nextDays[0]?.id ?? null);
+      const normalized = nextDays.map((day) => {
+        if (!startDate) {
+          return day;
+        }
+        const dayDate = new Date(day.date);
+        dayDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((dayDate.getTime() - startDate.getTime()) / 86400000);
+        return {
+          ...day,
+          dayNumber: diffDays + 1
+        };
+      });
+
+      setDays(normalized);
+      if (!selectedDayId && normalized.length) {
+        setSelectedDayId(normalized[0].id);
+      }
+      if (selectedDayId && !normalized.find((day) => day.id === selectedDayId)) {
+        setSelectedDayId(normalized[0]?.id ?? null);
       }
     });
     return unsubscribe;
-  }, [tripId, selectedDayId]);
+  }, [tripId, selectedDayId, trip?.startDate]);
 
   useEffect(() => {
     if (!tripId || !selectedDayId) {
@@ -99,17 +122,36 @@ const TripPage = () => {
 
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? null;
 
-  const handleAddDay = async () => {
+  const handleAddDay = async (date: Date) => {
     if (!tripId || !canEdit) {
       return;
     }
-    const lastDay = days[days.length - 1];
-    const nextDayNumber = lastDay ? lastDay.dayNumber + 1 : 1;
-    const nextDate = lastDay ? new Date(lastDay.date) : new Date();
-    if (lastDay) {
-      nextDate.setDate(nextDate.getDate() + 1);
+    const startDate = trip?.startDate ? new Date(trip.startDate) : null;
+    if (startDate) {
+      startDate.setHours(0, 0, 0, 0);
     }
-    await createDay(tripId, nextDayNumber, nextDate);
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    let dayNumber = 1;
+    if (startDate) {
+      dayNumber = Math.floor((targetDate.getTime() - startDate.getTime()) / 86400000) + 1;
+    } else {
+      const sorted = [...days].sort((a, b) => a.date.getTime() - b.date.getTime());
+      const insertIndex = sorted.findIndex((day) => day.date.getTime() > targetDate.getTime());
+      dayNumber = insertIndex === -1 ? sorted.length + 1 : insertIndex + 1;
+    }
+    await createDay(tripId, dayNumber, targetDate);
+  };
+
+  const handleDeleteDay = async (dayId: string) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this day and its items?");
+    if (!confirmed) {
+      return;
+    }
+    await deleteDay(tripId, dayId);
   };
 
   const handleAddItem = async (payload: {
@@ -117,6 +159,7 @@ const TripPage = () => {
     type: ItineraryItem["type"];
     note?: string;
     startTime?: Date;
+    details?: ItineraryItem["details"];
   }) => {
     if (!tripId || !selectedDayId || !user) {
       return;
@@ -125,6 +168,58 @@ const TripPage = () => {
       ...payload,
       createdBy: user.uid
     });
+  };
+
+  const handleAddBookingItem = async (payload: {
+    title: string;
+    type: "flight" | "hotel";
+    details: ItineraryItem["details"];
+    startTime?: Date;
+    date: Date;
+  }) => {
+    if (!tripId || !user) {
+      return;
+    }
+
+    await addBooking(tripId, {
+      title: payload.title,
+      type: payload.type,
+      details: payload.details,
+      startTime: payload.startTime,
+      date: payload.date,
+      createdBy: user.uid
+    });
+  };
+
+  const handleUpdateBookingItem = async (payload: {
+    bookingId: string;
+    title: string;
+    type: "flight" | "hotel";
+    details: ItineraryItem["details"];
+    startTime?: Date;
+    date: Date;
+  }) => {
+    if (!tripId || !user) {
+      return;
+    }
+    await updateBooking(tripId, payload.bookingId, {
+      title: payload.title,
+      type: payload.type,
+      details: payload.details,
+      startTime: payload.startTime,
+      date: payload.date
+    });
+  };
+
+  const handleDeleteBookingItem = async (bookingId: string) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this booking?");
+    if (!confirmed) {
+      return;
+    }
+    await deleteBooking(tripId, bookingId);
   };
 
   const handleDeleteTrip = async () => {
@@ -161,6 +256,13 @@ const TripPage = () => {
     }
   };
 
+  const handleDestinationPlaceId = async (placeId: string) => {
+    if (!tripId || !canEdit || trip?.destinationPlaceId === placeId) {
+      return;
+    }
+    await updateTripDestinationPlaceId(tripId, placeId);
+  };
+
   if (!tripId) {
     return <p className="text-sm text-muted-foreground">Missing trip id.</p>;
   }
@@ -169,27 +271,48 @@ const TripPage = () => {
     return <p className="text-sm text-muted-foreground">Loading trip details...</p>;
   }
 
+  const tripStart = trip.startDate ? new Date(trip.startDate) : null;
+  const tripEnd = trip.endDate ? new Date(trip.endDate) : null;
+  const tripDuration =
+    tripStart && tripEnd
+      ? Math.floor((tripEnd.getTime() - tripStart.getTime()) / 86400000) + 1
+      : null;
+
   return (
     <div className="flex flex-col gap-6">
       <Card className="p-6">
-        <h2 className="text-2xl font-semibold">{trip.title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          {trip.inviteToken && (role === "owner" || role === "editor") ? (
-            <InviteLink token={trip.inviteToken} />
-          ) : null}
-          {isOwner ? (
-            <Button variant="outline" onClick={handleDeleteTrip}>
-              Delete trip
-            </Button>
-          ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold">{trip.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {trip.destination ? <span>{trip.destination}</span> : <span>No destination</span>}
+              {tripStart && tripEnd ? (
+                <span>
+                  · {tripStart.toLocaleDateString()} → {tripEnd.toLocaleDateString()}
+                </span>
+              ) : null}
+              {tripDuration ? <span>· {tripDuration} days</span> : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {trip.inviteToken && (role === "owner" || role === "editor") ? (
+              <ShareDialog inviteToken={trip.inviteToken} />
+            ) : null}
+            {isOwner ? (
+              <Button variant="outline" onClick={handleDeleteTrip}>
+                Delete trip
+              </Button>
+            ) : null}
+          </div>
         </div>
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">
         <TabButton label="Itinerary" active={activeTab === "itinerary"} onClick={() => setActiveTab("itinerary")} />
+        <TabButton label="Bookings" active={activeTab === "bookings"} onClick={() => setActiveTab("bookings")} />
         <TabButton label="Map" active={activeTab === "map"} onClick={() => setActiveTab("map")} />
         <TabButton label="Expenses" active={activeTab === "expenses"} onClick={() => setActiveTab("expenses")} />
         <TabButton label="Journal" active={activeTab === "journal"} onClick={() => setActiveTab("journal")} />
@@ -202,6 +325,7 @@ const TripPage = () => {
             selectedDayId={selectedDayId}
             onSelect={setSelectedDayId}
             onAdd={handleAddDay}
+            onDelete={handleDeleteDay}
             canEdit={canEdit}
           />
           {selectedDay ? (
@@ -283,8 +407,20 @@ const TripPage = () => {
             onSelect={setPending}
             canEdit={canEdit}
             destination={trip.destination}
+            destinationPlaceId={trip.destinationPlaceId}
+            onDestinationPlaceId={handleDestinationPlaceId}
           />
         </div>
+      ) : null}
+
+      {activeTab === "bookings" && tripId ? (
+        <TripBookingsTab
+          tripId={tripId}
+          canEdit={canEdit}
+          onAddItem={handleAddBookingItem}
+          onUpdateItem={handleUpdateBookingItem}
+          onDeleteItem={handleDeleteBookingItem}
+        />
       ) : null}
 
       {activeTab === "expenses" ? (
