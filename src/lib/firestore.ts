@@ -16,7 +16,14 @@ import {
 import { User } from "firebase/auth";
 import { db } from "./firebase";
 import { createInviteToken } from "./token";
-import { Trip, TripLocation, TripMember, TripRole } from "./types";
+import {
+  ItineraryDay,
+  ItineraryItem,
+  Trip,
+  TripLocation,
+  TripMember,
+  TripRole
+} from "./types";
 
 const tripsCollection = collection(db, "trips");
 
@@ -27,6 +34,32 @@ const mapTrip = (id: string, data: any): Trip => ({
   inviteToken: data.inviteToken,
   memberIds: data.memberIds ?? [],
   members: data.members ?? {},
+  createdAt: data.createdAt?.toDate?.() ?? undefined,
+  updatedAt: data.updatedAt?.toDate?.() ?? undefined
+});
+
+const mapDay = (id: string, tripId: string, data: any): ItineraryDay => ({
+  id,
+  tripId,
+  date: data.date?.toDate?.() ?? new Date(),
+  dayNumber: data.dayNumber ?? 1,
+  note: data.note,
+  createdAt: data.createdAt?.toDate?.() ?? undefined,
+  updatedAt: data.updatedAt?.toDate?.() ?? undefined
+});
+
+const mapItem = (id: string, tripId: string, dayId: string, data: any): ItineraryItem => ({
+  id,
+  tripId,
+  dayId,
+  type: data.type,
+  title: data.title,
+  startTime: data.startTime?.toDate?.() ?? undefined,
+  endTime: data.endTime?.toDate?.() ?? undefined,
+  locationId: data.locationId,
+  details: data.details,
+  note: data.note,
+  createdBy: data.createdBy,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
@@ -108,6 +141,60 @@ export const addLocation = async (
   await addDoc(locationsRef, {
     ...location,
     createdAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const subscribeDays = (
+  tripId: string,
+  onChange: (days: ItineraryDay[]) => void
+) => {
+  const daysRef = collection(db, "trips", tripId, "days");
+  const q = query(daysRef, orderBy("dayNumber", "asc"));
+  return onSnapshot(q, (snapshot) => {
+    const days = snapshot.docs.map((docSnap) => mapDay(docSnap.id, tripId, docSnap.data()));
+    onChange(days);
+  });
+};
+
+export const createDay = async (tripId: string, dayNumber: number, date: Date) => {
+  const daysRef = collection(db, "trips", tripId, "days");
+  await addDoc(daysRef, {
+    date,
+    dayNumber,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const subscribeItems = (
+  tripId: string,
+  dayId: string,
+  onChange: (items: ItineraryItem[]) => void
+) => {
+  const itemsRef = collection(db, "trips", tripId, "days", dayId, "items");
+  const q = query(itemsRef, orderBy("startTime", "asc"));
+  return onSnapshot(q, (snapshot) => {
+    const items = snapshot.docs.map((docSnap) => mapItem(docSnap.id, tripId, dayId, docSnap.data()));
+    onChange(items);
+  });
+};
+
+export const addItem = async (
+  tripId: string,
+  dayId: string,
+  item: Omit<ItineraryItem, "id" | "tripId" | "dayId" | "createdAt" | "updatedAt">
+) => {
+  const itemsRef = collection(db, "trips", tripId, "days", dayId, "items");
+  await addDoc(itemsRef, {
+    ...item,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
   });
   await updateDoc(doc(tripsCollection, tripId), {
     updatedAt: serverTimestamp()

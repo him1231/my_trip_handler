@@ -123,6 +123,13 @@ input[type="text"], textarea {
   width: 100%;
 }
 
+select, input[type="time"] {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+}
+
 .invite-link {
   display: flex;
   align-items: center;

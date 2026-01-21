@@ -27,3 +27,51 @@ export type TripLocation = {
   createdBy: string;
   createdAt?: Date;
 };
+
+export type ItineraryDay = {
+  id: string;
+  tripId: string;
+  date: Date;
+  dayNumber: number;
+  note?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export type ItineraryItemType =
+  | "flight"
+  | "hotel"
+  | "activity"
+  | "restaurant"
+  | "note"
+  | "transport";
+
+export type ItineraryItemDetails = {
+  flightNumber?: string;
+  airline?: string;
+  departure?: { airport: string; time: Date };
+  arrival?: { airport: string; time: Date };
+  confirmation?: string;
+  checkIn?: Date;
+  checkOut?: Date;
+  address?: string;
+  duration?: number;
+  cost?: number;
+  bookingUrl?: string;
+};
+
+export type ItineraryItem = {
+  id: string;
+  tripId: string;
+  dayId: string;
+  type: ItineraryItemType;
+  title: string;
+  startTime?: Date;
+  endTime?: Date;
+  locationId?: string;
+  details?: ItineraryItemDetails;
+  note?: string;
+  createdBy: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};

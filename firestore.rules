@@ -50,6 +50,16 @@ service cloud.firestore {
         allow read: if isTripMember(tripId);
         allow create, update, delete: if canEditTrip(tripId);
       }
+
+      match /days/{dayId} {
+        allow read: if isTripMember(tripId);
+        allow create, update, delete: if canEditTrip(tripId);
+
+        match /items/{itemId} {
+          allow read: if isTripMember(tripId);
+          allow create, update, delete: if canEditTrip(tripId);
+        }
+      }
     }
   }
 }
