@@ -416,6 +416,7 @@ const TripPage = () => {
       {activeTab === "bookings" && tripId ? (
         <TripBookingsTab
           tripId={tripId}
+          tripStartDate={tripStart ?? undefined}
           canEdit={canEdit}
           onAddItem={handleAddBookingItem}
           onUpdateItem={handleUpdateBookingItem}

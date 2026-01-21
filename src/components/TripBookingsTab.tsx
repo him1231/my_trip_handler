@@ -16,6 +16,7 @@ import { ItineraryItemDetails, TripBooking } from "../lib/types";
 
 type TripBookingsTabProps = {
   tripId: string;
+  tripStartDate?: Date;
   canEdit: boolean;
   onAddItem: (payload: {
     title: string;
@@ -35,7 +36,14 @@ type TripBookingsTabProps = {
   onDeleteItem: (bookingId: string) => Promise<void>;
 };
 
-const TripBookingsTab = ({ tripId, canEdit, onAddItem, onUpdateItem, onDeleteItem }: TripBookingsTabProps) => {
+const TripBookingsTab = ({
+  tripId,
+  tripStartDate,
+  canEdit,
+  onAddItem,
+  onUpdateItem,
+  onDeleteItem
+}: TripBookingsTabProps) => {
   const [bookingType, setBookingType] = useState<"flight" | "hotel">("flight");
   const [isAdding, setIsAdding] = useState(false);
   const [editingItem, setEditingItem] = useState<{ id: string; type: "flight" | "hotel" } | null>(null);
@@ -520,6 +528,7 @@ const TripBookingsTab = ({ tripId, canEdit, onAddItem, onUpdateItem, onDeleteIte
               />
               <HotelItemForm
                 {...hotelDetails}
+                tripStartDate={tripStartDate}
                 onChange={(field, value) =>
                   setHotelDetails((prev) => ({
                     ...prev,

@@ -87,19 +87,27 @@ const TripsPage = () => {
   return (
     <div className="flex flex-col gap-6">
       <Card className="p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-semibold">Your trips</h3>
-            <p className="text-sm text-muted-foreground">Create and manage your trip plans.</p>
+        {!showCreator ? (
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Your trips</h3>
+              <p className="text-sm text-muted-foreground">Create and manage your trip plans.</p>
+            </div>
+            <Button variant="outline" onClick={() => setShowCreator(true)} aria-label="Create a new trip">
+              + New trip
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setShowCreator((prev) => !prev)}
-            aria-label="Create a new trip"
-          >
-            + New trip
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Create a trip</h3>
+              <p className="text-sm text-muted-foreground">Fill in the details to start planning.</p>
+            </div>
+            <Button variant="outline" onClick={() => setShowCreator(false)}>
+              Back
+            </Button>
+          </div>
+        )}
 
         {showCreator ? (
           <div className="mt-6 flex flex-col gap-4">
@@ -110,12 +118,14 @@ const TripsPage = () => {
               <QuickCreateTrip onCreate={handleQuickCreate} />
             )}
           </div>
-        ) : null}
-
-        {error ? <p className="mt-2 text-sm text-muted-foreground">{error}</p> : null}
-        <div className="mt-4">
-          <TripList trips={trips} />
-        </div>
+        ) : (
+          <>
+            {error ? <p className="mt-2 text-sm text-muted-foreground">{error}</p> : null}
+            <div className="mt-4">
+              <TripList trips={trips} />
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );

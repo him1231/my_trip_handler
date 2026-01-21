@@ -151,28 +151,6 @@ const ItineraryItemForm = ({ dayDate, canEdit, onSave }: ItineraryItemFormProps)
           onChange={(event) => setTitle(event.target.value)}
         />
         <Input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
-        {type === "flight" ? (
-          <FlightItemForm
-            {...flightDetails}
-            onChange={(field, value) =>
-              setFlightDetails((prev) => ({
-                ...prev,
-                [field]: value
-              }))
-            }
-          />
-        ) : null}
-        {type === "hotel" ? (
-          <HotelItemForm
-            {...hotelDetails}
-            onChange={(field, value) =>
-              setHotelDetails((prev) => ({
-                ...prev,
-                [field]: value
-              }))
-            }
-          />
-        ) : null}
         <Textarea
           placeholder="Optional notes"
           rows={3}

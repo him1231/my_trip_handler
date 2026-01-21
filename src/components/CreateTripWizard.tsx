@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useFormik } from "formik";
 import * as yup from "yup";
 import CreateTripPreview from "./CreateTripPreview";
+import DateRangePicker from "./DateRangePicker";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
@@ -172,11 +173,27 @@ const CreateTripWizard = ({ onCreate }: CreateTripWizardProps) => {
     return diff > 0 ? diff : null;
   }, [formik.values.endDate, formik.values.startDate]);
 
-  const handleStartDateChange = (value: string) => {
-    formik.setFieldValue("startDate", value);
-    if (!formik.values.endDate || new Date(formik.values.endDate) < new Date(value)) {
-      formik.setFieldValue("endDate", value);
+  const formatInputDate = (date: Date) => {
+    const offset = date.getTimezoneOffset();
+    const local = new Date(date.getTime() - offset * 60000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const handleRangeChange = (range?: { from?: Date; to?: Date }) => {
+    if (!range?.from) {
+      formik.setFieldValue("startDate", "");
+      formik.setFieldValue("endDate", "");
+      return;
     }
+
+    const nextStart = formatInputDate(range.from);
+    const nextEnd = range.to ? formatInputDate(range.to) : "";
+    formik.setFieldValue("startDate", nextStart);
+    if (nextEnd) {
+      formik.setFieldValue("endDate", nextEnd);
+      return;
+    }
+    formik.setFieldValue("endDate", "");
   };
 
   const handleBack = () => setStep((prev) => Math.max(0, prev - 1));
@@ -276,32 +293,20 @@ const CreateTripWizard = ({ onCreate }: CreateTripWizardProps) => {
       case 1:
         return (
           <div className="flex flex-col gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Start date</Label>
-                <Input
-                  type="date"
-                  value={formik.values.startDate}
-                  onChange={(event) => handleStartDateChange(event.target.value)}
-                  onBlur={formik.handleBlur("startDate")}
-                />
-                {formik.touched.startDate && formik.errors.startDate ? (
-                  <p className="mt-1 text-sm text-destructive">{formik.errors.startDate}</p>
-                ) : null}
-              </div>
-              <div>
-                <Label>End date</Label>
-                <Input
-                  type="date"
-                  value={formik.values.endDate}
-                  onChange={formik.handleChange("endDate")}
-                  onBlur={formik.handleBlur("endDate")}
-                />
-                {formik.touched.endDate && formik.errors.endDate ? (
-                  <p className="mt-1 text-sm text-destructive">{formik.errors.endDate}</p>
-                ) : null}
-              </div>
-            </div>
+            <DateRangePicker
+              label="Dates"
+              description="Pick start and end dates in one calendar."
+              startDate={formik.values.startDate ? new Date(formik.values.startDate) : undefined}
+              endDate={formik.values.endDate ? new Date(formik.values.endDate) : undefined}
+              onChange={handleRangeChange}
+              defaultMonth={formik.values.startDate ? new Date(formik.values.startDate) : new Date()}
+            />
+            {formik.touched.startDate && formik.errors.startDate ? (
+              <p className="mt-1 text-sm text-destructive">{formik.errors.startDate}</p>
+            ) : null}
+            {formik.touched.endDate && formik.errors.endDate ? (
+              <p className="mt-1 text-sm text-destructive">{formik.errors.endDate}</p>
+            ) : null}
             {durationDays ? (
               <p className="text-sm text-muted-foreground">Trip length: {durationDays} days</p>
             ) : null}
