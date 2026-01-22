@@ -195,6 +195,20 @@
         "contentPatterns": ["Analytics\\.log", "logEvent", "Sentry\\."]
       }
     },
+    "git-workflow": {
+      "description": "Git workflow automation for branch/commit/push/merge",
+      "priority": 7,
+      "triggers": {
+        "keywords": ["git", "branch", "commit", "push", "merge", "feature branch"],
+        "keywordPatterns": ["\bcommit\b", "\bmerge\b", "\bpush\b", "\bbranch\b"],
+        "intentPatterns": [
+          "(?:create|make|open).*(?:branch)",
+          "(?:commit|push|merge).*(?:git|branch|main)",
+          "(?:one command|single command).*(?:git|branch|commit|merge)",
+          "(?:merge).*(?:to|into).*(?:main)"
+        ]
+      }
+    },
     "list-pagination": {
       "description": "FlashList, pagination, infinite scroll patterns",
       "priority": 5,

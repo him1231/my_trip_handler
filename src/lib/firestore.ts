@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   deleteDoc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -11,6 +12,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where
 } from "firebase/firestore";
@@ -26,8 +28,10 @@ import {
   TripMember,
   TripRole
 } from "./types";
+import { HkiaFlightInfoResponse, HkiaLanguage } from "./hkiaFlightInfo";
 
 const tripsCollection = collection(db, "trips");
+const hkiaCacheCollection = collection(db, "hkiaCache");
 
 const mapTrip = (id: string, data: any): Trip => ({
   id,
@@ -416,6 +420,81 @@ export const updateMemberRole = async (tripId: string, uid: string, role: TripRo
     [memberKey]: role,
     updatedAt: serverTimestamp()
   });
+};
+
+const buildHkiaCacheId = (params: {
+  date: string;
+  arrival: boolean;
+  cargo: boolean;
+  lang: HkiaLanguage;
+}) => {
+  const leg = params.arrival ? "arr" : "dep";
+  const cargo = params.cargo ? "cargo" : "pax";
+  return `${params.date}_${leg}_${cargo}_${params.lang}`;
+};
+
+export const getHkiaCacheEntry = async (params: {
+  date: string;
+  arrival: boolean;
+  cargo: boolean;
+  lang: HkiaLanguage;
+}): Promise<HkiaFlightInfoResponse | null> => {
+  const docId = buildHkiaCacheId(params);
+  const snapshot = await getDoc(doc(hkiaCacheCollection, docId));
+  if (!snapshot.exists()) {
+    return null;
+  }
+  const data = snapshot.data();
+  const createdAt = data.createdAt?.toDate?.() as Date | undefined;
+  if (createdAt) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    cutoff.setHours(0, 0, 0, 0);
+    if (createdAt < cutoff) {
+      return null;
+    }
+  }
+  const response = data.response as HkiaFlightInfoResponse | HkiaFlightInfoResponse[] | undefined;
+  if (!response) {
+    return null;
+  }
+  if (Array.isArray(response)) {
+    return response[0] ?? null;
+  }
+  return response;
+};
+
+export const setHkiaCacheEntry = async (
+  params: {
+    date: string;
+    arrival: boolean;
+    cargo: boolean;
+    lang: HkiaLanguage;
+  },
+  response: HkiaFlightInfoResponse
+) => {
+  const docId = buildHkiaCacheId(params);
+  await setDoc(doc(hkiaCacheCollection, docId), {
+    date: params.date,
+    arrival: params.arrival,
+    cargo: params.cargo,
+    lang: params.lang,
+    response,
+    createdAt: serverTimestamp()
+  });
+};
+
+export const pruneHkiaCache = async () => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  cutoff.setHours(0, 0, 0, 0);
+  const q = query(
+    hkiaCacheCollection,
+    where("createdAt", "<", Timestamp.fromDate(cutoff)),
+    limit(50)
+  );
+  const snapshot = await getDocs(q);
+  await Promise.all(snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
 };
 
 export const deleteTrip = async (tripId: string) => {

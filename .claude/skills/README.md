@@ -9,6 +9,7 @@ This directory contains project-specific skills that provide Claude with domain 
 |-------|-------------|
 | [testing-patterns](./testing-patterns/SKILL.md) | Jest testing, factory functions, mocking strategies, TDD workflow |
 | [systematic-debugging](./systematic-debugging/SKILL.md) | Four-phase debugging methodology, root cause analysis |
+| [git-workflow](./git-workflow/SKILL.md) | Git workflow automation for branch/commit/push/merge |
 
 ### React & UI
 | Skill | Description |
