@@ -1,30 +1,117 @@
-import type { ItineraryItem as ItineraryItemType } from "../lib/types";
+import type { ChecklistItem, ItineraryItem as ItineraryItemType, TimelineEntry } from "../lib/types";
+import {
+  ClipboardList,
+  GripVertical,
+  Hotel,
+  MapPin,
+  Plane,
+  StickyNote,
+  TrainFront,
+  Utensils
+} from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 
 type ItineraryItemProps = {
-  item: ItineraryItemType;
+  entry: TimelineEntry;
+  onSelectBooking?: (bookingId: string) => void;
+  onSelectItem?: (item: ItineraryItemType) => void;
+  onToggleChecklist?: (itemId: string, items: ChecklistItem[]) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 };
 
-const formatTime = (date?: Date) => {
-  if (!date) {
+const formatTime = (value?: Date | string | number) => {
+  if (!value) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
     return null;
   }
   return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 };
 
-const ItineraryItem = ({ item }: ItineraryItemProps) => {
-  const flightDetails = item.type === "flight" ? item.details : undefined;
-  const hotelDetails = item.type === "hotel" ? item.details : undefined;
+const getIcon = (type: string) => {
+  switch (type) {
+    case "flight":
+      return Plane;
+    case "hotel":
+      return Hotel;
+    case "restaurant":
+      return Utensils;
+    case "activity":
+      return MapPin;
+    case "note":
+      return StickyNote;
+    case "transport":
+      return TrainFront;
+    case "checklist":
+      return ClipboardList;
+    default:
+      return MapPin;
+  }
+};
+
+const ItineraryItem = ({
+  entry,
+  onSelectBooking,
+  onSelectItem,
+  onToggleChecklist,
+  dragHandleProps
+}: ItineraryItemProps) => {
+  const isBooking = entry.kind === "booking";
+  const item = entry.kind === "itinerary" ? entry.item : null;
+  const booking = entry.kind === "booking" ? entry.booking : null;
+  const type = item?.type ?? booking?.type ?? "activity";
+  const Icon = getIcon(type);
+
+  const flightDetails = type === "flight" ? (item?.details ?? booking?.details) : undefined;
+  const hotelDetails = type === "hotel" ? (item?.details ?? booking?.details) : undefined;
+  const checklistItems = item?.details?.checklistItems ?? [];
+
+  const handleToggle = (id: string) => {
+    if (!item || !onToggleChecklist) {
+      return;
+    }
+    const nextItems = checklistItems.map((entryItem) =>
+      entryItem.id === id ? { ...entryItem, done: !entryItem.done } : entryItem
+    );
+    onToggleChecklist(item.id, nextItems);
+  };
 
   return (
-    <Card className="p-3">
+    <Card
+      className={`p-3 ${isBooking || item ? "cursor-pointer" : ""}`}
+      onClick={
+        isBooking && booking && onSelectBooking
+          ? () => onSelectBooking(booking.id)
+          : item && onSelectItem
+            ? () => onSelectItem(item)
+            : undefined
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <strong className="text-sm font-semibold">{item.title}</strong>
-        <Badge variant="secondary">{item.type}</Badge>
-        {item.startTime ? <Badge variant="outline">{formatTime(item.startTime)}</Badge> : null}
+        <span className="inline-flex items-center gap-2 text-sm font-semibold">
+          <Icon className="h-4 w-4" />
+          {item?.title ?? booking?.title}
+        </span>
+        <Badge variant="secondary">{type}</Badge>
+        {isBooking ? <Badge variant="outline">booking</Badge> : null}
+        {item?.startTime || booking?.startTime ? (
+          <Badge variant="outline">{formatTime(item?.startTime ?? booking?.startTime)}</Badge>
+        ) : null}
+        {dragHandleProps ? (
+          <button
+            type="button"
+            className="ml-auto text-muted-foreground"
+            {...dragHandleProps}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
-      {item.type === "flight" ? (
+      {type === "flight" ? (
         <div className="mt-2 text-sm text-muted-foreground">
           {flightDetails?.flightNumber ? <p>Flight: {flightDetails.flightNumber}</p> : null}
           {flightDetails?.airline ? <p>Airline: {flightDetails.airline}</p> : null}
@@ -41,7 +128,7 @@ const ItineraryItem = ({ item }: ItineraryItemProps) => {
           {flightDetails?.confirmation ? <p>Confirmation: {flightDetails.confirmation}</p> : null}
         </div>
       ) : null}
-      {item.type === "hotel" ? (
+      {type === "hotel" ? (
         <div className="mt-2 text-sm text-muted-foreground">
           {hotelDetails?.address ? <p>Address: {hotelDetails.address}</p> : null}
           {hotelDetails?.checkIn ? <p>Check-in: {hotelDetails.checkIn.toDateString()}</p> : null}
@@ -49,7 +136,21 @@ const ItineraryItem = ({ item }: ItineraryItemProps) => {
           {hotelDetails?.confirmation ? <p>Confirmation: {hotelDetails.confirmation}</p> : null}
         </div>
       ) : null}
-      {item.note ? <p className="mt-2 text-sm text-muted-foreground">{item.note}</p> : null}
+      {item?.note ? <p className="mt-2 text-sm text-muted-foreground">{item.note}</p> : null}
+      {item?.type === "checklist" && checklistItems.length ? (
+        <div className="mt-3 flex flex-col gap-2">
+          {checklistItems.map((entryItem) => (
+            <label key={entryItem.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={entryItem.done}
+                onChange={() => handleToggle(entryItem.id)}
+              />
+              <span className={entryItem.done ? "line-through" : ""}>{entryItem.title}</span>
+            </label>
+          ))}
+        </div>
+      ) : null}
     </Card>
   );
 };

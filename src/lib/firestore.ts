@@ -22,6 +22,7 @@ import { createInviteToken } from "./token";
 import {
   ItineraryDay,
   ItineraryItem,
+  ItineraryItemDetails,
   Trip,
   TripBooking,
   TripLocation,
@@ -70,16 +71,55 @@ const mapDay = (id: string, tripId: string, data: any): ItineraryDay => ({
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
 
-const mapItem = (id: string, tripId: string, dayId: string, data: any): ItineraryItem => ({
+const toDateValue = (value?: unknown): Date | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof (value as { toDate?: () => Date }).toDate === "function") {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const mapDetailsDates = (details?: ItineraryItemDetails) => {
+  if (!details) {
+    return details;
+  }
+  return {
+    ...details,
+    departure: details.departure
+      ? {
+        ...details.departure,
+        time: toDateValue(details.departure.time) ?? details.departure.time
+      }
+      : undefined,
+    arrival: details.arrival
+      ? {
+        ...details.arrival,
+        time: toDateValue(details.arrival.time) ?? details.arrival.time
+      }
+      : undefined,
+    checkIn: toDateValue(details.checkIn) ?? details.checkIn,
+    checkOut: toDateValue(details.checkOut) ?? details.checkOut
+  };
+};
+
+const mapItem = (id: string, tripId: string, data: any): ItineraryItem => ({
   id,
   tripId,
-  dayId,
+  dayKey: data.dayKey,
+  date: data.date?.toDate?.() ?? new Date(),
+  order: data.order,
   type: data.type,
   title: data.title,
   startTime: data.startTime?.toDate?.() ?? undefined,
   endTime: data.endTime?.toDate?.() ?? undefined,
   locationId: data.locationId,
-  details: data.details,
+  details: mapDetailsDates(data.details),
   note: data.note,
   createdBy: data.createdBy,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
@@ -92,8 +132,10 @@ const mapBooking = (id: string, tripId: string, data: any): TripBooking => ({
   type: data.type,
   title: data.title,
   date: data.date?.toDate?.() ?? new Date(),
+  dayKey: data.dayKey,
+  order: data.order,
   startTime: data.startTime?.toDate?.() ?? undefined,
-  details: data.details,
+  details: mapDetailsDates(data.details),
   createdBy: data.createdBy,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
@@ -285,15 +327,13 @@ export const createDay = async (tripId: string, dayNumber: number, date: Date) =
   return dayDoc.id;
 };
 
-export const subscribeItems = (
+export const subscribeItinerary = (
   tripId: string,
-  dayId: string,
   onChange: (items: ItineraryItem[]) => void
 ) => {
-  const itemsRef = collection(db, "trips", tripId, "days", dayId, "items");
-  const q = query(itemsRef, orderBy("startTime", "asc"));
-  return onSnapshot(q, (snapshot) => {
-    const items = snapshot.docs.map((docSnap) => mapItem(docSnap.id, tripId, dayId, docSnap.data()));
+  const itemsRef = collection(db, "trips", tripId, "itinerary");
+  return onSnapshot(itemsRef, (snapshot) => {
+    const items = snapshot.docs.map((docSnap) => mapItem(docSnap.id, tripId, docSnap.data()));
     onChange(items);
   });
 };
@@ -312,10 +352,9 @@ export const subscribeBookings = (
 
 export const addItem = async (
   tripId: string,
-  dayId: string,
-  item: Omit<ItineraryItem, "id" | "tripId" | "dayId" | "createdAt" | "updatedAt">
+  item: Omit<ItineraryItem, "id" | "tripId" | "createdAt" | "updatedAt">
 ) => {
-  const itemsRef = collection(db, "trips", tripId, "days", dayId, "items");
+  const itemsRef = collection(db, "trips", tripId, "itinerary");
   await addDoc(itemsRef, {
     ...removeUndefined(item),
     createdAt: serverTimestamp(),
@@ -365,11 +404,10 @@ export const deleteBooking = async (tripId: string, bookingId: string) => {
 
 export const updateItem = async (
   tripId: string,
-  dayId: string,
   itemId: string,
-  item: Partial<Omit<ItineraryItem, "id" | "tripId" | "dayId" | "createdAt">>
+  item: Partial<Omit<ItineraryItem, "id" | "tripId" | "createdAt">>
 ) => {
-  const itemRef = doc(db, "trips", tripId, "days", dayId, "items", itemId);
+  const itemRef = doc(db, "trips", tripId, "itinerary", itemId);
   await updateDoc(itemRef, {
     ...removeUndefined(item),
     updatedAt: serverTimestamp()

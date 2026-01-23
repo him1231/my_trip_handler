@@ -51,7 +51,14 @@ export type ItineraryItemType =
   | "activity"
   | "restaurant"
   | "note"
-  | "transport";
+  | "transport"
+  | "checklist";
+
+export type ChecklistItem = {
+  id: string;
+  title: string;
+  done: boolean;
+};
 
 export type ItineraryItemDetails = {
   flightNumber?: string;
@@ -65,12 +72,15 @@ export type ItineraryItemDetails = {
   duration?: number;
   cost?: number;
   bookingUrl?: string;
+  checklistItems?: ChecklistItem[];
 };
 
 export type ItineraryItem = {
   id: string;
   tripId: string;
-  dayId: string;
+  dayKey: string;
+  date: Date;
+  order?: number;
   type: ItineraryItemType;
   title: string;
   startTime?: Date;
@@ -89,9 +99,15 @@ export type TripBooking = {
   type: "flight" | "hotel";
   title: string;
   date: Date;
+  dayKey?: string;
+  order?: number;
   startTime?: Date;
   details?: ItineraryItemDetails;
   createdBy: string;
   createdAt?: Date;
   updatedAt?: Date;
 };
+
+export type TimelineEntry =
+  | { kind: "itinerary"; item: ItineraryItem }
+  | { kind: "booking"; booking: TripBooking };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ItineraryItemDetails, ItineraryItemType } from "../lib/types";
+import { ChecklistItem, ItineraryItemDetails, ItineraryItemType } from "../lib/types";
 import FlightItemForm from "./FlightItemForm";
 import HotelItemForm from "./HotelItemForm";
 import { Button } from "./ui/button";
@@ -17,6 +17,15 @@ import { Textarea } from "./ui/textarea";
 type ItineraryItemFormProps = {
   dayDate: Date;
   canEdit: boolean;
+  initialValues?: {
+    type: ItineraryItemType;
+    title: string;
+    note?: string;
+    startTime?: Date;
+    details?: ItineraryItemDetails;
+  };
+  submitLabel?: string;
+  onCancel?: () => void;
   onSave: (payload: {
     type: ItineraryItemType;
     title: string;
@@ -26,28 +35,26 @@ type ItineraryItemFormProps = {
   }) => void;
 };
 
-const ItineraryItemForm = ({ dayDate, canEdit, onSave }: ItineraryItemFormProps) => {
-  const [type, setType] = useState<ItineraryItemType>("activity");
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-  const [time, setTime] = useState("");
-  const [flightDetails, setFlightDetails] = useState({
-    flightNumber: "",
-    airline: "",
-    departureAirport: "",
-    departureTime: "",
-    arrivalAirport: "",
-    arrivalTime: "",
-    confirmation: "",
-    bookingUrl: ""
-  });
-  const [hotelDetails, setHotelDetails] = useState({
-    address: "",
-    checkIn: "",
-    checkOut: "",
-    confirmation: "",
-    bookingUrl: ""
-  });
+const ItineraryItemForm = ({
+  dayDate,
+  canEdit,
+  initialValues,
+  submitLabel = "Add item",
+  onCancel,
+  onSave
+}: ItineraryItemFormProps) => {
+  const [type, setType] = useState<ItineraryItemType>(initialValues?.type ?? "activity");
+  const [title, setTitle] = useState(initialValues?.title ?? "");
+  const [note, setNote] = useState(initialValues?.note ?? "");
+  const [time, setTime] = useState(
+    initialValues?.startTime
+      ? initialValues.startTime.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+      : ""
+  );
+  const [checklistTitle, setChecklistTitle] = useState("");
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
+    initialValues?.details?.checklistItems ?? []
+  );
 
   const handleSubmit = () => {
     if (!title.trim()) {
@@ -65,35 +72,9 @@ const ItineraryItemForm = ({ dayDate, canEdit, onSave }: ItineraryItemFormProps)
     }
 
     let details: ItineraryItemDetails | undefined;
-    if (type === "flight") {
-      const departureTime = flightDetails.departureTime
-        ? new Date(`${dayDate.toISOString().slice(0, 10)}T${flightDetails.departureTime}`)
-        : undefined;
-      const arrivalTime = flightDetails.arrivalTime
-        ? new Date(`${dayDate.toISOString().slice(0, 10)}T${flightDetails.arrivalTime}`)
-        : undefined;
+    if (type === "checklist") {
       details = {
-        flightNumber: flightDetails.flightNumber || undefined,
-        airline: flightDetails.airline || undefined,
-        departure: flightDetails.departureAirport
-          ? { airport: flightDetails.departureAirport, time: departureTime ?? new Date(dayDate) }
-          : undefined,
-        arrival: flightDetails.arrivalAirport
-          ? { airport: flightDetails.arrivalAirport, time: arrivalTime ?? new Date(dayDate) }
-          : undefined,
-        confirmation: flightDetails.confirmation || undefined,
-        bookingUrl: flightDetails.bookingUrl || undefined
-      };
-    }
-    if (type === "hotel") {
-      const checkIn = hotelDetails.checkIn ? new Date(hotelDetails.checkIn) : undefined;
-      const checkOut = hotelDetails.checkOut ? new Date(hotelDetails.checkOut) : undefined;
-      details = {
-        address: hotelDetails.address || undefined,
-        checkIn,
-        checkOut,
-        confirmation: hotelDetails.confirmation || undefined,
-        bookingUrl: hotelDetails.bookingUrl || undefined
+        checklistItems: checklistItems.length ? checklistItems : undefined
       };
     }
 
@@ -108,40 +89,24 @@ const ItineraryItemForm = ({ dayDate, canEdit, onSave }: ItineraryItemFormProps)
     setTitle("");
     setNote("");
     setTime("");
-    setFlightDetails({
-      flightNumber: "",
-      airline: "",
-      departureAirport: "",
-      departureTime: "",
-      arrivalAirport: "",
-      arrivalTime: "",
-      confirmation: "",
-      bookingUrl: ""
-    });
-    setHotelDetails({
-      address: "",
-      checkIn: "",
-      checkOut: "",
-      confirmation: "",
-      bookingUrl: ""
-    });
+    setChecklistTitle("");
+    setChecklistItems([]);
   };
 
   return (
     <Card className="bg-slate-50 p-4">
-      <h4 className="text-base font-semibold">Add itinerary item</h4>
+      <h4 className="text-base font-semibold">{submitLabel}</h4>
       <div className="mt-4 flex flex-col gap-3">
         <Select value={type} onValueChange={(value) => setType(value as ItineraryItemType)}>
           <SelectTrigger>
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="flight">Flight</SelectItem>
-            <SelectItem value="hotel">Hotel</SelectItem>
             <SelectItem value="activity">Activity</SelectItem>
             <SelectItem value="restaurant">Restaurant</SelectItem>
             <SelectItem value="note">Note</SelectItem>
             <SelectItem value="transport">Transport</SelectItem>
+            <SelectItem value="checklist">List</SelectItem>
           </SelectContent>
         </Select>
         <Input
@@ -151,15 +116,86 @@ const ItineraryItemForm = ({ dayDate, canEdit, onSave }: ItineraryItemFormProps)
           onChange={(event) => setTitle(event.target.value)}
         />
         <Input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
-        <Textarea
-          placeholder="Optional notes"
-          rows={3}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-        <Button onClick={handleSubmit} disabled={!canEdit}>
-          Add item
-        </Button>
+        {type !== "checklist" ? (
+          <Textarea
+            placeholder="Optional notes"
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        ) : null}
+        {type === "checklist" ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="Checklist item"
+                value={checklistTitle}
+                onChange={(event) => setChecklistTitle(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!checklistTitle.trim()) {
+                    return;
+                  }
+                  setChecklistItems((prev) => [
+                    ...prev,
+                    {
+                      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                      title: checklistTitle.trim(),
+                      done: false
+                    }
+                  ]);
+                  setChecklistTitle("");
+                }}
+              >
+                Add
+              </Button>
+            </div>
+            {checklistItems.length ? (
+              <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+                {checklistItems.map((entry) => (
+                  <div key={entry.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={entry.done}
+                      onChange={() =>
+                        setChecklistItems((prev) =>
+                          prev.map((item) =>
+                            item.id === entry.id ? { ...item, done: !item.done } : item
+                          )
+                        )
+                      }
+                    />
+                    <span className={entry.done ? "line-through" : ""}>{entry.title}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="ml-auto"
+                      onClick={() =>
+                        setChecklistItems((prev) => prev.filter((item) => item.id !== entry.id))
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleSubmit} disabled={!canEdit}>
+            {submitLabel}
+          </Button>
+          {onCancel ? (
+            <Button variant="outline" type="button" onClick={onCancel}>
+              Cancel
+            </Button>
+          ) : null}
+        </div>
       </div>
     </Card>
   );

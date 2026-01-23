@@ -19,6 +19,8 @@ type TripBookingsTabProps = {
   tripId: string;
   tripStartDate?: Date;
   canEdit: boolean;
+  editBookingId?: string | null;
+  onEditComplete?: () => void;
   onAddItem: (payload: {
     title: string;
     type: "flight" | "hotel";
@@ -41,6 +43,8 @@ const TripBookingsTab = ({
   tripId,
   tripStartDate,
   canEdit,
+  editBookingId,
+  onEditComplete,
   onAddItem,
   onUpdateItem,
   onDeleteItem
@@ -154,6 +158,16 @@ const TripBookingsTab = ({
     }
     return subscribeBookings(tripId, setBookings);
   }, [tripId]);
+
+  useEffect(() => {
+    if (!editBookingId) {
+      return;
+    }
+    const target = bookings.find((booking) => booking.id === editBookingId);
+    if (target && (!editingItem || editingItem.id !== editBookingId)) {
+      startEditing(target);
+    }
+  }, [bookings, editBookingId, editingItem]);
 
   const handleCheckFlight = async () => {
     const airline = flightDetails.airline.trim();
@@ -511,6 +525,7 @@ const TripBookingsTab = ({
       setEditingItem(null);
       setIsAdding(false);
       resetFlightForm();
+      onEditComplete?.();
     } finally {
       setSaving(false);
     }
@@ -551,6 +566,7 @@ const TripBookingsTab = ({
       setEditingItem(null);
       setIsAdding(false);
       setHotelTitle("");
+      onEditComplete?.();
     } finally {
       setSaving(false);
     }
@@ -627,6 +643,7 @@ const TripBookingsTab = ({
               setIsAdding((prev) => {
                 if (prev) {
                   resetFlightForm();
+                  onEditComplete?.();
                 }
                 return !prev;
               });
@@ -827,6 +844,7 @@ const TripBookingsTab = ({
                 setIsAdding(false);
                 setEditingItem(null);
                 resetFlightForm();
+                onEditComplete?.();
               }}
             >
               Cancel
