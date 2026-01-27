@@ -12,7 +12,6 @@ type ItineraryDayProps = {
   dayKey: string;
   entries: Array<TimelineEntry & { entryId: string }>;
   canEdit: boolean;
-  entryIds: string[];
   onAddItem: (payload: {
     title: string;
     type: ItemType["type"];
@@ -77,7 +76,6 @@ const ItineraryDay = ({
   dayKey,
   entries,
   canEdit,
-  entryIds,
   onAddItem,
   onUpdateItem,
   onSelectBooking,
@@ -120,7 +118,7 @@ const ItineraryDay = ({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <SortableContext items={entryIds}>
+        <SortableContext items={sortedEntries.map((entry) => entry.entryId)}>
           {sortedEntries.map((entry) => {
             if (entry.kind === "itinerary" && editingItem?.id === entry.item.id) {
               return (

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
+import { Separator } from "./ui/separator";
 
 type ItineraryItemProps = {
   entry: TimelineEntry;
@@ -59,6 +60,22 @@ const ItineraryItem = ({
   onToggleChecklist,
   dragHandleProps
 }: ItineraryItemProps) => {
+  if (entry.kind === "day") {
+    return (
+      <div className="flex flex-col gap-2">
+        <Separator />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">
+            Day {entry.day.dayNumber}
+          </span>
+          <span className="text-sm text-muted-foreground">· {entry.day.date.toLocaleDateString()}</span>
+        </div>
+        {entry.day.note ? <p className="text-sm text-muted-foreground">{entry.day.note}</p> : null}
+        <Separator />
+      </div>
+    );
+  }
+
   const isBooking = entry.kind === "booking";
   const item = entry.kind === "itinerary" ? entry.item : null;
   const booking = entry.kind === "booking" ? entry.booking : null;

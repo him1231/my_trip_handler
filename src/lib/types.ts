@@ -110,4 +110,5 @@ export type TripBooking = {
 
 export type TimelineEntry =
   | { kind: "itinerary"; item: ItineraryItem }
-  | { kind: "booking"; booking: TripBooking };
+  | { kind: "booking"; booking: TripBooking }
+  | { kind: "day"; day: ItineraryDay; dayKey: string };

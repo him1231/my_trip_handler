@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { DndContext, DragEndEvent } from "@dnd-kit/core";
+import { closestCenter, DndContext, DragEndEvent } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import DaySelector from "../components/DaySelector";
 import ShareDialog from "../components/ShareDialog";
-import ItineraryDay from "../components/ItineraryDay";
+import ItineraryTimeline from "../components/ItineraryTimeline";
 import MapPanel from "../components/MapPanel";
 import TabButton from "../components/TabButton";
 import TripBookingsTab from "../components/TripBookingsTab";
@@ -249,13 +250,48 @@ const TripPage = () => {
     return grouped;
   }, [days, timelineEntries]);
 
+  const timelineSections = useMemo(() => {
+    return days.map((day) => {
+      const dayKey = toDayKey(day.date);
+      return {
+        day,
+        dayKey,
+        entries: entriesByDay.get(dayKey) ?? []
+      };
+    });
+  }, [days, entriesByDay]);
+
+  const flatTimeline = useMemo(() => {
+    const flattened: Array<TimelineEntry & { entryId: string; dayKey: string }> = [];
+    timelineSections.forEach((section) => {
+      flattened.push({
+        kind: "day",
+        day: section.day,
+        dayKey: section.dayKey,
+        entryId: `day:${section.dayKey}`
+      });
+      section.entries.forEach((entry) => flattened.push(entry));
+    });
+    return flattened;
+  }, [timelineSections]);
+
+  const sortableEntryIds = useMemo(() => flatTimeline.map((entry) => entry.entryId), [flatTimeline]);
+
+  const orderedDayKeys = useMemo(
+    () =>
+      [...days]
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((day) => toDayKey(day.date)),
+    [days]
+  );
+
   const entryById = useMemo(() => {
     const map = new Map<string, TimelineEntry & { entryId: string; dayKey: string }>();
-    timelineEntries.forEach((entry) => {
+    flatTimeline.forEach((entry) => {
       map.set(entry.entryId, entry);
     });
     return map;
-  }, [timelineEntries]);
+  }, [flatTimeline]);
 
   const handleAddDay = async (date: Date) => {
     if (!tripId || !canEdit) {
@@ -457,47 +493,112 @@ const TripPage = () => {
     const activeId = String(active.id);
     const overId = String(over.id);
     const activeEntry = entryById.get(activeId);
-    if (!activeEntry) {
+    if (!activeEntry || activeEntry.kind === "day") {
       return;
     }
     const fromDayKey = activeEntry.dayKey;
-    const overDayKey = dayByKey.has(overId)
-      ? overId
-      : entryById.get(overId)?.dayKey;
-    if (!overDayKey) {
+    const activeIndex = sortableEntryIds.indexOf(activeId);
+    const overIndex = sortableEntryIds.indexOf(overId);
+    if (activeIndex === -1 || overIndex === -1) {
       return;
     }
 
-    const fromEntries = entriesByDay.get(fromDayKey)?.map((entry) => entry.entryId) ?? [];
-    const toEntries = entriesByDay.get(overDayKey)?.map((entry) => entry.entryId) ?? [];
-    if (!fromEntries.length) {
+    const isHeaderDrop = overId.startsWith("day:");
+    const isAboveHeader = isHeaderDrop ? activeIndex > overIndex : false;
+
+    const findPreviousHeaderIndex = (ids: string[], index: number) => {
+      for (let i = index; i >= 0; i -= 1) {
+        if (ids[i].startsWith("day:")) {
+          return i;
+        }
+      }
+      return -1;
+    };
+
+    const buildNextFlatIds = () => {
+      if (!isHeaderDrop) {
+        return arrayMove(sortableEntryIds, activeIndex, overIndex);
+      }
+      const updated = [...sortableEntryIds];
+      const removedIndex = updated.indexOf(activeId);
+      if (removedIndex === -1) {
+        return null;
+      }
+      updated.splice(removedIndex, 1);
+
+      const headerIndex = updated.indexOf(overId);
+      if (headerIndex === -1) {
+        return null;
+      }
+      const previousHeaderIndex = findPreviousHeaderIndex(updated, headerIndex - 1);
+      const insertAt = isAboveHeader
+        ? previousHeaderIndex >= 0
+          ? previousHeaderIndex + 1
+          : 0
+        : headerIndex + 1;
+      const clampedInsertAt = Math.min(Math.max(insertAt, 0), updated.length);
+      updated.splice(clampedInsertAt, 0, activeId);
+      return updated;
+    };
+
+    const nextFlatIds = buildNextFlatIds();
+    if (!nextFlatIds) {
       return;
     }
 
-    if (fromDayKey === overDayKey) {
-      const oldIndex = fromEntries.indexOf(activeId);
-      const newIndex = toEntries.indexOf(overId);
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+    const findTargetDayKey = (ids: string[], index: number) => {
+      for (let i = index; i >= 0; i -= 1) {
+        const id = ids[i];
+        if (id.startsWith("day:")) {
+          return id.replace("day:", "");
+        }
+      }
+      const firstHeader = ids.find((id) => id.startsWith("day:"));
+      return firstHeader ? firstHeader.replace("day:", "") : null;
+    };
+
+    const targetDayKey = isHeaderDrop
+      ? isAboveHeader
+        ? (() => {
+          const headerIndex = nextFlatIds.indexOf(overId);
+          const previousHeaderIndex = findPreviousHeaderIndex(nextFlatIds, headerIndex - 1);
+          const prevHeaderId = previousHeaderIndex >= 0 ? nextFlatIds[previousHeaderIndex] : null;
+          return prevHeaderId ? prevHeaderId.replace("day:", "") : findTargetDayKey(nextFlatIds, headerIndex);
+        })()
+        : overId.replace("day:", "")
+      : findTargetDayKey(nextFlatIds, overIndex);
+    if (!targetDayKey) {
+      console.debug("DND end: missing target day", { targetIndex, nextFlatIds });
+      return;
+    }
+
+    const nextDayOrders = new Map<string, string[]>();
+    let currentDayKey: string | null = null;
+    nextFlatIds.forEach((id) => {
+      if (id.startsWith("day:")) {
+        currentDayKey = id.replace("day:", "");
+        if (!nextDayOrders.has(currentDayKey)) {
+          nextDayOrders.set(currentDayKey, []);
+        }
         return;
       }
-      const nextIds = arrayMove(fromEntries, oldIndex, newIndex);
-      await persistOrderForDay(fromDayKey, nextIds);
+      if (currentDayKey) {
+        nextDayOrders.get(currentDayKey)?.push(id);
+      }
+    });
+
+    const nextFrom = nextDayOrders.get(fromDayKey) ?? [];
+    const nextTo = nextDayOrders.get(targetDayKey) ?? [];
+
+    if (fromDayKey === targetDayKey) {
+      await persistOrderForDay(fromDayKey, nextFrom);
       return;
     }
 
-    const fromIndex = fromEntries.indexOf(activeId);
-    if (fromIndex === -1) {
-      return;
-    }
-    const insertIndex = dayByKey.has(overId) ? toEntries.length : Math.max(toEntries.indexOf(overId), 0);
-    const nextFrom = fromEntries.filter((entryId) => entryId !== activeId);
-    const nextTo = [...toEntries];
-    nextTo.splice(insertIndex, 0, activeId);
-
-    await updateEntryDay(activeId, overDayKey);
+    await updateEntryDay(activeId, targetDayKey);
     await Promise.all([
       persistOrderForDay(fromDayKey, nextFrom),
-      persistOrderForDay(overDayKey, nextTo)
+      persistOrderForDay(targetDayKey, nextTo)
     ]);
   };
 
@@ -618,49 +719,39 @@ const TripPage = () => {
             onDelete={handleDeleteDay}
             canEdit={canEdit}
           />
-          <DndContext onDragEnd={handleDragEnd}>
-            <div className="flex flex-col gap-6">
-              {days.length ? (
-                days.map((day) => {
-                  const dayKey = toDayKey(day.date);
-                  const entries = entriesByDay.get(dayKey) ?? [];
-                  const entryIds = entries.map((entry) => entry.entryId);
-                  return (
-                    <div
-                      key={day.id}
-                      ref={(node) => {
-                        dayRefs.current[day.id] = node;
-                      }}
-                    >
-                      <ItineraryDay
-                        day={day}
-                        dayKey={dayKey}
-                        entries={entries}
-                        entryIds={entryIds}
-                        canEdit={canEdit}
-                        onAddItem={(payload) => handleAddItem(day, payload)}
-                        onUpdateItem={(itemId, payload) =>
-                          handleUpdateItem(itemId, {
-                            ...payload,
-                            dayKey,
-                            date: day.date
-                          })
-                        }
-                        onSelectBooking={handleSelectBookingEdit}
-                        onToggleChecklist={handleToggleChecklist}
-                      />
-                    </div>
-                  );
-                })
-              ) : (
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold">No days yet</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Add a day to start planning your itinerary.
-                  </p>
-                </Card>
-              )}
-            </div>
+          <DndContext
+            onDragEnd={handleDragEnd}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+          >
+            {days.length ? (
+              <ItineraryTimeline
+                entries={flatTimeline}
+                sortableEntryIds={sortableEntryIds}
+                dayByKey={dayByKey}
+                canEdit={canEdit}
+                onAddItem={handleAddItem}
+                onUpdateItem={(day, itemId, payload) =>
+                  handleUpdateItem(itemId, {
+                    ...payload,
+                    dayKey: toDayKey(day.date),
+                    date: day.date
+                  })
+                }
+                onSelectBooking={handleSelectBookingEdit}
+                onToggleChecklist={handleToggleChecklist}
+                onDayRef={(dayId, node) => {
+                  dayRefs.current[dayId] = node;
+                }}
+              />
+            ) : (
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold">No days yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Add a day to start planning your itinerary.
+                </p>
+              </Card>
+            )}
           </DndContext>
         </div>
       ) : null}
