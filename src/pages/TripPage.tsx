@@ -532,9 +532,7 @@ const TripPage = () => {
       }
       const previousHeaderIndex = findPreviousHeaderIndex(updated, headerIndex - 1);
       const insertAt = isAboveHeader
-        ? previousHeaderIndex >= 0
-          ? previousHeaderIndex + 1
-          : 0
+        ? headerIndex
         : headerIndex + 1;
       const clampedInsertAt = Math.min(Math.max(insertAt, 0), updated.length);
       updated.splice(clampedInsertAt, 0, activeId);
@@ -568,7 +566,6 @@ const TripPage = () => {
         : overId.replace("day:", "")
       : findTargetDayKey(nextFlatIds, overIndex);
     if (!targetDayKey) {
-      console.debug("DND end: missing target day", { targetIndex, nextFlatIds });
       return;
     }
 

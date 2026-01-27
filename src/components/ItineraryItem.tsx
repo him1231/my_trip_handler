@@ -4,6 +4,7 @@ import {
   GripVertical,
   Hotel,
   MapPin,
+  Pencil,
   Plane,
   StickyNote,
   TrainFront,
@@ -97,16 +98,7 @@ const ItineraryItem = ({
   };
 
   return (
-    <Card
-      className={`p-3 ${isBooking || item ? "cursor-pointer" : ""}`}
-      onClick={
-        isBooking && booking && onSelectBooking
-          ? () => onSelectBooking(booking.id)
-          : item && onSelectItem
-            ? () => onSelectItem(item)
-            : undefined
-      }
-    >
+    <Card className="p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-2 text-sm font-semibold">
           <Icon className="h-4 w-4" />
@@ -117,15 +109,38 @@ const ItineraryItem = ({
         {item?.startTime || booking?.startTime ? (
           <Badge variant="outline">{formatTime(item?.startTime ?? booking?.startTime)}</Badge>
         ) : null}
-        {dragHandleProps ? (
-          <button
-            type="button"
-            className="ml-auto text-muted-foreground"
-            {...dragHandleProps}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+        {(isBooking && booking && onSelectBooking) || (item && onSelectItem) || dragHandleProps ? (
+          <div className="ml-auto flex items-center gap-2">
+            {isBooking && booking && onSelectBooking ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onSelectBooking(booking.id)}
+                aria-label="Edit booking"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            ) : null}
+            {item && onSelectItem ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onSelectItem(item)}
+                aria-label="Edit item"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            ) : null}
+            {dragHandleProps ? (
+              <button
+                type="button"
+                className="text-muted-foreground"
+                {...dragHandleProps}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {type === "flight" ? (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ChecklistItem, ItineraryDay, ItineraryItem, TimelineEntry } from "../lib/types";
 import { Button } from "./ui/button";
@@ -57,6 +57,24 @@ type DayHeaderProps = {
   onCancelAdd: () => void;
 };
 
+const entrySignature = (entry: ItineraryTimelineEntry) => {
+  if (entry.kind === "day") {
+    return `day:${entry.day.id}:${entry.day.dayNumber}:${entry.day.date.getTime()}:${entry.day.note ?? ""}:${
+      entry.day.updatedAt?.getTime() ?? ""
+    }`;
+  }
+  if (entry.kind === "booking") {
+    return `booking:${entry.booking.id}:${entry.booking.order ?? ""}:${
+      entry.booking.dayKey ?? ""
+    }:${entry.booking.startTime?.getTime() ?? ""}:${entry.booking.title}:${
+      entry.booking.updatedAt?.getTime() ?? ""
+    }`;
+  }
+  return `itinerary:${entry.item.id}:${entry.item.order ?? ""}:${entry.item.dayKey}:${
+    entry.item.startTime?.getTime() ?? ""
+  }:${entry.item.title}:${entry.item.note ?? ""}:${entry.item.updatedAt?.getTime() ?? ""}`;
+};
+
 const SortableEntry = ({
   entry,
   canEdit,
@@ -92,6 +110,11 @@ const SortableEntry = ({
     </div>
   );
 };
+
+const MemoSortableEntry = memo(
+  SortableEntry,
+  (prev, next) => prev.canEdit === next.canEdit && entrySignature(prev.entry) === entrySignature(next.entry)
+);
 
 const DayHeaderRow = ({
   entry,
@@ -151,6 +174,16 @@ const DayHeaderRow = ({
   );
 };
 
+const MemoDayHeaderRow = memo(
+  DayHeaderRow,
+  (prev, next) =>
+    prev.canEdit === next.canEdit
+    && prev.isEditing === next.isEditing
+    && prev.isActive === next.isActive
+    && prev.hasEntries === next.hasEntries
+    && entrySignature(prev.entry) === entrySignature(next.entry)
+);
+
 const ItineraryTimeline = ({
   entries,
   sortableEntryIds,
@@ -165,10 +198,10 @@ const ItineraryTimeline = ({
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
   const [activeAddDayKey, setActiveAddDayKey] = useState<string | null>(null);
 
-  const onSelectItem = (item: ItineraryItem) => {
+  const onSelectItem = useCallback((item: ItineraryItem) => {
     setEditingItem(item);
     setActiveAddDayKey(null);
-  };
+  }, []);
 
   const sortedEntries = useMemo(() => entries, [entries]);
   const dayEntryCount = useMemo(() => {
@@ -191,7 +224,7 @@ const ItineraryTimeline = ({
             const isActive = activeAddDayKey === entry.dayKey;
             const hasEntries = (dayEntryCount.get(entry.dayKey) ?? 0) > 0;
             return (
-              <DayHeaderRow
+              <MemoDayHeaderRow
                 key={entry.entryId}
                 entry={entry}
                 canEdit={canEdit}
@@ -241,7 +274,7 @@ const ItineraryTimeline = ({
           }
 
           return (
-            <SortableEntry
+            <MemoSortableEntry
               key={entry.entryId}
               entry={entry}
               canEdit={canEdit}
