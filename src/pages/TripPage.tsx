@@ -12,25 +12,37 @@ import TripBookingsTab from "../components/TripBookingsTab";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { useAuth } from "../lib/auth";
 import {
   addItem,
   addLocation,
   addBooking,
+  createUnscheduledGroup,
   createDay,
   deleteDay,
   deleteBooking,
   deleteTrip,
   subscribeDays,
   subscribeItinerary,
+  subscribeUnscheduledGroups,
   subscribeBookings,
   subscribeLocations,
   subscribeTrip,
   updateTripDestinationPlaceId,
+  updateDay,
   updateBooking,
-  updateItem
+  updateItem,
+  updateUnscheduledGroup
 } from "../lib/firestore";
 import {
   ChecklistItem,
@@ -39,8 +51,13 @@ import {
   TimelineEntry,
   Trip,
   TripBooking,
-  TripLocation
+  TripLocation,
+  UnscheduledGroup
 } from "../lib/types";
+
+type TimelineContentEntry =
+  | (TimelineEntry & { kind: "itinerary"; entryId: string; dayKey: string; order?: number })
+  | (TimelineEntry & { kind: "booking"; entryId: string; dayKey: string; order?: number });
 
 const TripPage = () => {
   const { tripId } = useParams();
@@ -52,6 +69,7 @@ const TripPage = () => {
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>([]);
   const [bookings, setBookings] = useState<TripBooking[]>([]);
+  const [unscheduledGroups, setUnscheduledGroups] = useState<UnscheduledGroup[]>([]);
   const [bookingEditId, setBookingEditId] = useState<string | null>(null);
   const [pending, setPending] = useState<{ lat: number; lng: number; name?: string; address?: string } | null>(
     null
@@ -59,6 +77,9 @@ const TripPage = () => {
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal">("itinerary");
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -130,6 +151,15 @@ const TripPage = () => {
   }, [tripId]);
 
   useEffect(() => {
+    if (!tripId) {
+      setUnscheduledGroups([]);
+      return;
+    }
+    const unsubscribe = subscribeUnscheduledGroups(tripId, setUnscheduledGroups);
+    return unsubscribe;
+  }, [tripId]);
+
+  useEffect(() => {
     if (pending?.name) {
       setName(pending.name);
     }
@@ -145,7 +175,21 @@ const TripPage = () => {
   const canEdit = role === "owner" || role === "editor";
   const isOwner = role === "owner";
 
-  const selectedDay = days.find((day) => day.id === selectedDayId) ?? null;
+  useEffect(() => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    if (unscheduledGroups.length > 0) {
+      return;
+    }
+    createUnscheduledGroup(tripId, {
+      title: "Unscheduled",
+      order: 0,
+      isDefault: true
+    }).catch((error) => {
+      console.error("Failed to create default unscheduled header", error);
+    });
+  }, [tripId, canEdit, unscheduledGroups.length]);
 
   const toDayKey = (date: Date) => {
     const offset = date.getTimezoneOffset();
@@ -172,14 +216,6 @@ const TripPage = () => {
     return base.getTime();
   };
 
-  const dayIdByKey = useMemo(() => {
-    const map = new Map<string, string>();
-    days.forEach((day) => {
-      map.set(toDayKey(day.date), day.id);
-    });
-    return map;
-  }, [days]);
-
   const dayByKey = useMemo(() => {
     const map = new Map<string, DayType>();
     days.forEach((day) => {
@@ -188,11 +224,63 @@ const TripPage = () => {
     return map;
   }, [days]);
 
+  const unscheduledGroupById = useMemo(() => {
+    const map = new Map<string, UnscheduledGroup>();
+    unscheduledGroups.forEach((group) => {
+      map.set(group.id, group);
+    });
+    return map;
+  }, [unscheduledGroups]);
+
+  const defaultUnscheduledGroup = useMemo(
+    () => unscheduledGroups.find((group) => group.isDefault) ?? unscheduledGroups[0] ?? null,
+    [unscheduledGroups]
+  );
+
+  const buildSectionKey = (groupId: string) => `unscheduled:${groupId}`;
+  const isUnscheduledSectionKey = (key: string) => key.startsWith("unscheduled:");
+  const parseUnscheduledGroupId = (key: string) => key.replace("unscheduled:", "");
+
   const timelineEntries = useMemo(() => {
-    const entries: Array<TimelineEntry & { entryId: string; dayKey: string; order: number | undefined }> = [];
+    const entries: TimelineContentEntry[] = [];
+
+    const resolveItemSectionKey = (item: ItineraryItem) => {
+      if (item.dayKey) {
+        return item.dayKey;
+      }
+      if (item.unscheduledGroupId) {
+        if (unscheduledGroupById.has(item.unscheduledGroupId)) {
+          return buildSectionKey(item.unscheduledGroupId);
+        }
+        if (defaultUnscheduledGroup) {
+          return buildSectionKey(defaultUnscheduledGroup.id);
+        }
+        return buildSectionKey(item.unscheduledGroupId);
+      }
+      if (item.date) {
+        return toDayKey(item.date);
+      }
+      return toDayKey(new Date());
+    };
+
+    const resolveBookingSectionKey = (booking: TripBooking) => {
+      if (booking.dayKey) {
+        return booking.dayKey;
+      }
+      if (booking.unscheduledGroupId) {
+        if (unscheduledGroupById.has(booking.unscheduledGroupId)) {
+          return buildSectionKey(booking.unscheduledGroupId);
+        }
+        if (defaultUnscheduledGroup) {
+          return buildSectionKey(defaultUnscheduledGroup.id);
+        }
+        return buildSectionKey(booking.unscheduledGroupId);
+      }
+      return toDayKey(booking.date);
+    };
 
     itineraryItems.forEach((item) => {
-      const dayKey = item.dayKey || toDayKey(item.date);
+      const dayKey = resolveItemSectionKey(item);
       entries.push({
         kind: "itinerary",
         item,
@@ -203,7 +291,7 @@ const TripPage = () => {
     });
 
     bookings.forEach((booking) => {
-      const dayKey = booking.dayKey || toDayKey(booking.date);
+      const dayKey = resolveBookingSectionKey(booking);
       entries.push({
         kind: "booking",
         booking,
@@ -214,13 +302,17 @@ const TripPage = () => {
     });
 
     return entries;
-  }, [bookings, itineraryItems]);
+  }, [bookings, buildSectionKey, defaultUnscheduledGroup, itineraryItems, unscheduledGroupById]);
 
-  const entriesByDay = useMemo(() => {
-    const grouped = new Map<string, Array<TimelineEntry & { entryId: string }>>();
+  const entriesBySection = useMemo(() => {
+    const grouped = new Map<string, TimelineContentEntry[]>();
     days.forEach((day) => {
       grouped.set(toDayKey(day.date), []);
     });
+    unscheduledGroups.forEach((group) => {
+      grouped.set(buildSectionKey(group.id), []);
+    });
+
     timelineEntries.forEach((entry) => {
       if (!grouped.has(entry.dayKey)) {
         grouped.set(entry.dayKey, []);
@@ -239,51 +331,66 @@ const TripPage = () => {
         }
         const timeA = a.kind === "booking"
           ? a.booking.startTime?.getTime() ?? new Date(a.booking.date).setHours(0, 0, 0, 0)
-          : a.item.startTime?.getTime() ?? new Date(a.item.date).setHours(0, 0, 0, 0);
+          : a.item.startTime?.getTime() ?? new Date(a.item.date ?? Date.now()).setHours(0, 0, 0, 0);
         const timeB = b.kind === "booking"
           ? b.booking.startTime?.getTime() ?? new Date(b.booking.date).setHours(0, 0, 0, 0)
-          : b.item.startTime?.getTime() ?? new Date(b.item.date).setHours(0, 0, 0, 0);
+          : b.item.startTime?.getTime() ?? new Date(b.item.date ?? Date.now()).setHours(0, 0, 0, 0);
         return timeA - timeB;
       });
     });
 
     return grouped;
-  }, [days, timelineEntries]);
+  }, [buildSectionKey, days, timelineEntries, unscheduledGroups]);
 
-  const timelineSections = useMemo(() => {
-    return days.map((day) => {
-      const dayKey = toDayKey(day.date);
-      return {
-        day,
-        dayKey,
-        entries: entriesByDay.get(dayKey) ?? []
-      };
+  const unscheduledCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    timelineEntries.forEach((entry) => {
+      if (!isUnscheduledSectionKey(entry.dayKey)) {
+        return;
+      }
+      const groupId = parseUnscheduledGroupId(entry.dayKey);
+      counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
     });
-  }, [days, entriesByDay]);
+    return counts;
+  }, [timelineEntries]);
 
   const flatTimeline = useMemo(() => {
     const flattened: Array<TimelineEntry & { entryId: string; dayKey: string }> = [];
-    timelineSections.forEach((section) => {
+    days.forEach((day) => {
+      const dayKey = toDayKey(day.date);
       flattened.push({
         kind: "day",
-        day: section.day,
-        dayKey: section.dayKey,
-        entryId: `day:${section.dayKey}`
+        day: day,
+        dayKey,
+        entryId: `day:${dayKey}`
       });
-      section.entries.forEach((entry) => flattened.push(entry));
+      (entriesBySection.get(dayKey) ?? []).forEach((entry) => flattened.push(entry));
     });
+
+    if (unscheduledGroups.length) {
+      flattened.push({
+        kind: "separator",
+        label: "Unscheduled",
+        dayKey: "separator:unscheduled",
+        entryId: "separator:unscheduled"
+      });
+    }
+
+    unscheduledGroups.forEach((group) => {
+      const groupKey = buildSectionKey(group.id);
+      flattened.push({
+        kind: "group",
+        group,
+        dayKey: groupKey,
+        entryId: `group:${group.id}`
+      });
+      (entriesBySection.get(groupKey) ?? []).forEach((entry) => flattened.push(entry));
+    });
+
     return flattened;
-  }, [timelineSections]);
+  }, [buildSectionKey, days, entriesBySection, unscheduledGroups]);
 
   const sortableEntryIds = useMemo(() => flatTimeline.map((entry) => entry.entryId), [flatTimeline]);
-
-  const orderedDayKeys = useMemo(
-    () =>
-      [...days]
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
-        .map((day) => toDayKey(day.date)),
-    [days]
-  );
 
   const entryById = useMemo(() => {
     const map = new Map<string, TimelineEntry & { entryId: string; dayKey: string }>();
@@ -318,10 +425,49 @@ const TripPage = () => {
     if (!tripId || !canEdit) {
       return;
     }
-    const confirmed = window.confirm("Delete this day and its items?");
+    const confirmed = window.confirm("Delete this day? Items will move to the default unscheduled header.");
     if (!confirmed) {
       return;
     }
+    const day = days.find((entry) => entry.id === dayId);
+    if (!day) {
+      return;
+    }
+    let groupId = defaultUnscheduledGroup?.id ?? null;
+    if (!groupId) {
+      groupId = await createUnscheduledGroup(tripId, {
+        title: "Unscheduled",
+        order: unscheduledGroups.length,
+        isDefault: true
+      });
+    }
+    const dayKey = toDayKey(day.date);
+    const itemsToMove = itineraryItems.filter((item) => {
+      const key = item.dayKey ?? (item.date ? toDayKey(item.date) : null);
+      return key === dayKey;
+    });
+    const bookingsToMove = bookings.filter((booking) => {
+      const key = booking.dayKey ?? toDayKey(booking.date);
+      return key === dayKey;
+    });
+
+    await Promise.all([
+      ...itemsToMove.map((item) =>
+        updateItem(tripId, item.id, {
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          order: item.order
+        })
+      ),
+      ...bookingsToMove.map((booking) =>
+        updateBooking(tripId, booking.id, {
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          order: booking.order
+        })
+      )
+    ]);
+
     await deleteDay(tripId, dayId);
   };
 
@@ -343,7 +489,31 @@ const TripPage = () => {
       ...payload,
       dayKey,
       date: day.date,
+      unscheduledGroupId: null,
       order: buildOrder(day.date, payload.startTime),
+      createdBy: user.uid
+    });
+  };
+
+  const handleAddUnscheduledItem = async (
+    group: UnscheduledGroup,
+    payload: {
+      title: string;
+      type: ItineraryItem["type"];
+      note?: string;
+      startTime?: Date;
+      details?: ItineraryItem["details"];
+    }
+  ) => {
+    if (!tripId || !user) {
+      return;
+    }
+    await addItem(tripId, {
+      ...payload,
+      dayKey: null,
+      date: payload.startTime ? payload.startTime : new Date(),
+      unscheduledGroupId: group.id,
+      order: payload.startTime ? buildOrder(new Date(), payload.startTime) : Date.now(),
       createdBy: user.uid
     });
   };
@@ -366,6 +536,7 @@ const TripPage = () => {
       startTime: payload.startTime,
       date: payload.date,
       dayKey: toDayKey(payload.date),
+      unscheduledGroupId: null,
       order: buildOrder(payload.date, payload.startTime),
       createdBy: user.uid
     });
@@ -388,7 +559,8 @@ const TripPage = () => {
       details: payload.details,
       startTime: payload.startTime,
       date: payload.date,
-      dayKey: toDayKey(payload.date)
+      dayKey: toDayKey(payload.date),
+      unscheduledGroupId: null
     });
   };
 
@@ -403,16 +575,24 @@ const TripPage = () => {
     });
   };
 
-  const handleUpdateItem = async (itemId: string, payload: {
-    title: string;
-    type: ItineraryItem["type"];
-    note?: string;
-    startTime?: Date;
-    details?: ItineraryItem["details"];
-    dayKey: string;
-    date: Date;
-  }) => {
+  const handleUpdateItem = async (
+    entry: TimelineEntry & { entryId: string; dayKey: string },
+    itemId: string,
+    payload: {
+      title: string;
+      type: ItineraryItem["type"];
+      note?: string;
+      startTime?: Date;
+      details?: ItineraryItem["details"];
+    }
+  ) => {
     if (!tripId) {
+      return;
+    }
+    const isUnscheduled = isUnscheduledSectionKey(entry.dayKey);
+    const targetDay = dayByKey.get(entry.dayKey);
+    const nextDate = isUnscheduled ? (entry.kind === "itinerary" ? entry.item.date ?? new Date() : new Date()) : targetDay?.date;
+    if (!nextDate) {
       return;
     }
     await updateItem(tripId, itemId, {
@@ -421,10 +601,82 @@ const TripPage = () => {
       note: payload.note,
       startTime: payload.startTime,
       details: payload.details,
-      dayKey: payload.dayKey,
-      date: payload.date,
-      order: buildOrder(payload.date, payload.startTime)
+      dayKey: isUnscheduled ? null : entry.dayKey,
+      date: nextDate,
+      unscheduledGroupId: isUnscheduled ? parseUnscheduledGroupId(entry.dayKey) : null,
+      order: buildOrder(nextDate, payload.startTime)
     });
+  };
+
+  const handleCreateUnscheduledGroup = async (title: string) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const nextOrder = unscheduledGroups.reduce((max, group) => Math.max(max, group.order ?? 0), -1) + 1;
+    await createUnscheduledGroup(tripId, {
+      title,
+      order: nextOrder,
+      isDefault: false
+    });
+  };
+
+  const handleUpdateDayDetails = async (day: DayType, payload: { date: Date; note?: string }) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const nextDate = new Date(payload.date);
+    nextDate.setHours(0, 0, 0, 0);
+    const prevDayKey = toDayKey(day.date);
+    const nextDayKey = toDayKey(nextDate);
+
+    await updateDay(tripId, day.id, {
+      date: nextDate,
+      note: payload.note?.trim() || undefined
+    });
+
+    if (prevDayKey === nextDayKey) {
+      return;
+    }
+
+    const itemsToMove = itineraryItems.filter((item) => {
+      if (item.dayKey) {
+        return item.dayKey === prevDayKey;
+      }
+      if (item.unscheduledGroupId) {
+        return false;
+      }
+      const key = item.date ? toDayKey(item.date) : null;
+      return key === prevDayKey;
+    });
+    const bookingsToMove = bookings.filter((booking) => {
+      if (booking.dayKey) {
+        return booking.dayKey === prevDayKey;
+      }
+      if (booking.unscheduledGroupId) {
+        return false;
+      }
+      const key = toDayKey(booking.date);
+      return key === prevDayKey;
+    });
+
+    await Promise.all([
+      ...itemsToMove.map((item) =>
+        updateItem(tripId, item.id, {
+          dayKey: nextDayKey,
+          date: nextDate,
+          unscheduledGroupId: null,
+          startTime: applyDayToTime(nextDate, item.startTime)
+        })
+      ),
+      ...bookingsToMove.map((booking) =>
+        updateBooking(tripId, booking.id, {
+          dayKey: nextDayKey,
+          date: nextDate,
+          unscheduledGroupId: null,
+          startTime: applyDayToTime(nextDate, booking.startTime)
+        })
+      )
+    ]);
   };
 
   const handleSelectBookingEdit = (bookingId: string) => {
@@ -440,14 +692,14 @@ const TripPage = () => {
     }
   };
 
-  const persistOrderForDay = async (dayKey: string, entryIds: string[]) => {
+  const persistOrderForSection = async (sectionKey: string, entryIds: string[]) => {
     if (!tripId) {
       return;
     }
     await Promise.all(
       entryIds.map((entryId, index) => {
         const entry = entryById.get(entryId);
-        if (!entry) {
+        if (!entry || entry.kind === "day" || entry.kind === "group" || entry.kind === "separator") {
           return Promise.resolve();
         }
         if (entry.kind === "itinerary") {
@@ -458,25 +710,48 @@ const TripPage = () => {
     );
   };
 
-  const updateEntryDay = async (entryId: string, targetDayKey: string) => {
+  const updateEntrySection = async (entryId: string, targetSectionKey: string) => {
     if (!tripId) {
       return;
     }
     const entry = entryById.get(entryId);
-    const targetDay = dayByKey.get(targetDayKey);
-    if (!entry || !targetDay) {
+    if (!entry) {
+      return;
+    }
+    if (isUnscheduledSectionKey(targetSectionKey)) {
+      const groupId = parseUnscheduledGroupId(targetSectionKey);
+      if (entry.kind === "itinerary") {
+        await updateItem(tripId, entry.item.id, {
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          date: entry.item.date ?? new Date()
+        });
+      } else if (entry.kind === "booking") {
+        await updateBooking(tripId, entry.booking.id, {
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          date: entry.booking.date
+        });
+      }
+      return;
+    }
+
+    const targetDay = dayByKey.get(targetSectionKey);
+    if (!targetDay) {
       return;
     }
     if (entry.kind === "itinerary") {
       await updateItem(tripId, entry.item.id, {
-        dayKey: targetDayKey,
+        dayKey: targetSectionKey,
         date: targetDay.date,
+        unscheduledGroupId: null,
         startTime: applyDayToTime(targetDay.date, entry.item.startTime)
       });
-    } else {
+    } else if (entry.kind === "booking") {
       await updateBooking(tripId, entry.booking.id, {
-        dayKey: targetDayKey,
+        dayKey: targetSectionKey,
         date: targetDay.date,
+        unscheduledGroupId: null,
         startTime: applyDayToTime(targetDay.date, entry.booking.startTime)
       });
     }
@@ -493,7 +768,38 @@ const TripPage = () => {
     const activeId = String(active.id);
     const overId = String(over.id);
     const activeEntry = entryById.get(activeId);
-    if (!activeEntry || activeEntry.kind === "day") {
+    if (!activeEntry || activeEntry.kind === "day" || activeEntry.kind === "group" || activeEntry.kind === "separator") {
+      if (!activeEntry || activeEntry?.kind !== "group") {
+        return;
+      }
+
+      const groupHeaderIds = flatTimeline
+        .filter((entry) => entry.kind === "group")
+        .map((entry) => entry.entryId);
+      const fromIndex = groupHeaderIds.indexOf(activeId);
+      if (fromIndex === -1) {
+        return;
+      }
+
+      const overEntry = entryById.get(overId);
+      const overGroupId = overId.startsWith("group:")
+        ? overId.replace("group:", "")
+        : overEntry && (overEntry.kind === "itinerary" || overEntry.kind === "booking")
+          ? (isUnscheduledSectionKey(overEntry.dayKey) ? parseUnscheduledGroupId(overEntry.dayKey) : null)
+          : null;
+      if (!overGroupId) {
+        return;
+      }
+      const toIndex = groupHeaderIds.indexOf(`group:${overGroupId}`);
+      if (toIndex === -1 || fromIndex === toIndex) {
+        return;
+      }
+      const nextGroupOrderIds = arrayMove(groupHeaderIds, fromIndex, toIndex);
+      await Promise.all(
+        nextGroupOrderIds.map((entryId, index) =>
+          updateUnscheduledGroup(tripId!, entryId.replace("group:", ""), { order: index })
+        )
+      );
       return;
     }
     const fromDayKey = activeEntry.dayKey;
@@ -503,12 +809,26 @@ const TripPage = () => {
       return;
     }
 
-    const isHeaderDrop = overId.startsWith("day:");
+    const isHeaderId = (id: string) => id.startsWith("day:") || id.startsWith("group:") || id.startsWith("separator:");
+    const sectionKeyFromHeaderId = (id: string) => {
+      if (id.startsWith("day:")) {
+        return id.replace("day:", "");
+      }
+      if (id.startsWith("group:")) {
+        return buildSectionKey(id.replace("group:", ""));
+      }
+      if (id.startsWith("separator:")) {
+        return defaultUnscheduledGroup ? buildSectionKey(defaultUnscheduledGroup.id) : null;
+      }
+      return null;
+    };
+
+    const isHeaderDrop = isHeaderId(overId);
     const isAboveHeader = isHeaderDrop ? activeIndex > overIndex : false;
 
     const findPreviousHeaderIndex = (ids: string[], index: number) => {
       for (let i = index; i >= 0; i -= 1) {
-        if (ids[i].startsWith("day:")) {
+        if (isHeaderId(ids[i])) {
           return i;
         }
       }
@@ -530,7 +850,6 @@ const TripPage = () => {
       if (headerIndex === -1) {
         return null;
       }
-      const previousHeaderIndex = findPreviousHeaderIndex(updated, headerIndex - 1);
       const insertAt = isAboveHeader
         ? headerIndex
         : headerIndex + 1;
@@ -544,58 +863,58 @@ const TripPage = () => {
       return;
     }
 
-    const findTargetDayKey = (ids: string[], index: number) => {
+    const findTargetSectionKey = (ids: string[], index: number) => {
       for (let i = index; i >= 0; i -= 1) {
         const id = ids[i];
-        if (id.startsWith("day:")) {
-          return id.replace("day:", "");
+        if (isHeaderId(id)) {
+          return sectionKeyFromHeaderId(id);
         }
       }
-      const firstHeader = ids.find((id) => id.startsWith("day:"));
-      return firstHeader ? firstHeader.replace("day:", "") : null;
+      const firstHeader = ids.find((id) => isHeaderId(id));
+      return firstHeader ? sectionKeyFromHeaderId(firstHeader) : null;
     };
 
-    const targetDayKey = isHeaderDrop
+    const targetSectionKey = isHeaderDrop
       ? isAboveHeader
         ? (() => {
           const headerIndex = nextFlatIds.indexOf(overId);
           const previousHeaderIndex = findPreviousHeaderIndex(nextFlatIds, headerIndex - 1);
           const prevHeaderId = previousHeaderIndex >= 0 ? nextFlatIds[previousHeaderIndex] : null;
-          return prevHeaderId ? prevHeaderId.replace("day:", "") : findTargetDayKey(nextFlatIds, headerIndex);
+          return prevHeaderId ? sectionKeyFromHeaderId(prevHeaderId) : findTargetSectionKey(nextFlatIds, headerIndex);
         })()
-        : overId.replace("day:", "")
-      : findTargetDayKey(nextFlatIds, overIndex);
-    if (!targetDayKey) {
+        : sectionKeyFromHeaderId(overId)
+      : findTargetSectionKey(nextFlatIds, overIndex);
+    if (!targetSectionKey) {
       return;
     }
 
-    const nextDayOrders = new Map<string, string[]>();
-    let currentDayKey: string | null = null;
+    const nextSectionOrders = new Map<string, string[]>();
+    let currentSectionKey: string | null = null;
     nextFlatIds.forEach((id) => {
-      if (id.startsWith("day:")) {
-        currentDayKey = id.replace("day:", "");
-        if (!nextDayOrders.has(currentDayKey)) {
-          nextDayOrders.set(currentDayKey, []);
+      if (isHeaderId(id)) {
+        currentSectionKey = sectionKeyFromHeaderId(id);
+        if (currentSectionKey && !nextSectionOrders.has(currentSectionKey)) {
+          nextSectionOrders.set(currentSectionKey, []);
         }
         return;
       }
-      if (currentDayKey) {
-        nextDayOrders.get(currentDayKey)?.push(id);
+      if (currentSectionKey) {
+        nextSectionOrders.get(currentSectionKey)?.push(id);
       }
     });
 
-    const nextFrom = nextDayOrders.get(fromDayKey) ?? [];
-    const nextTo = nextDayOrders.get(targetDayKey) ?? [];
+    const nextFrom = nextSectionOrders.get(fromDayKey) ?? [];
+    const nextTo = nextSectionOrders.get(targetSectionKey) ?? [];
 
-    if (fromDayKey === targetDayKey) {
-      await persistOrderForDay(fromDayKey, nextFrom);
+    if (fromDayKey === targetSectionKey) {
+      await persistOrderForSection(fromDayKey, nextFrom);
       return;
     }
 
-    await updateEntryDay(activeId, targetDayKey);
+    await updateEntrySection(activeId, targetSectionKey);
     await Promise.all([
-      persistOrderForDay(fromDayKey, nextFrom),
-      persistOrderForDay(targetDayKey, nextTo)
+      persistOrderForSection(fromDayKey, nextFrom),
+      persistOrderForSection(targetSectionKey, nextTo)
     ]);
   };
 
@@ -708,33 +1027,107 @@ const TripPage = () => {
 
       {activeTab === "itinerary" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr]">
-          <DaySelector
-            days={days}
-            selectedDayId={selectedDayId}
-            onSelect={handleSelectDay}
-            onAdd={handleAddDay}
-            onDelete={handleDeleteDay}
-            canEdit={canEdit}
-          />
+          <div className="flex flex-col gap-6">
+            <DaySelector
+              days={days}
+              selectedDayId={selectedDayId}
+              onSelect={handleSelectDay}
+              onAdd={handleAddDay}
+              onDelete={handleDeleteDay}
+              canEdit={canEdit}
+            />
+            <Card className="flex flex-col gap-3 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Unscheduled headers</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Group items without a day so you can schedule them later.
+                  </p>
+                </div>
+                <Dialog
+                  open={groupDialogOpen}
+                  onOpenChange={(open) => {
+                    setGroupDialogOpen(open);
+                    if (!open) {
+                      setNewGroupName("");
+                    }
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={!canEdit}>
+                      Add header
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>New header</DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-4 flex flex-col gap-3">
+                      <div>
+                        <Label>Name</Label>
+                        <Input
+                          type="text"
+                          placeholder="Eat, Go, Shopping"
+                          value={newGroupName}
+                          onChange={(event) => setNewGroupName(event.target.value)}
+                        />
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          if (!newGroupName.trim()) {
+                            return;
+                          }
+                          setCreatingGroup(true);
+                          try {
+                            await handleCreateUnscheduledGroup(newGroupName.trim());
+                            setNewGroupName("");
+                            setGroupDialogOpen(false);
+                          } finally {
+                            setCreatingGroup(false);
+                          }
+                        }}
+                        disabled={!canEdit || !newGroupName.trim() || creatingGroup}
+                      >
+                        {creatingGroup ? "Adding..." : "Add header"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              <div className="flex flex-col gap-2">
+                {unscheduledGroups.map((group) => {
+                  const count = unscheduledCounts.get(group.id) ?? 0;
+                  return (
+                    <div
+                      key={group.id}
+                      className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{group.title}</span>
+                      <span className="text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
+                    </div>
+                  );
+                })}
+                {!unscheduledGroups.length ? (
+                  <p className="text-sm text-muted-foreground">No headers yet. Add the first header.</p>
+                ) : null}
+              </div>
+            </Card>
+          </div>
           <DndContext
             onDragEnd={handleDragEnd}
             collisionDetection={closestCenter}
             modifiers={[restrictToVerticalAxis]}
           >
-            {days.length ? (
+            {days.length || unscheduledGroups.length ? (
               <ItineraryTimeline
                 entries={flatTimeline}
                 sortableEntryIds={sortableEntryIds}
                 dayByKey={dayByKey}
                 canEdit={canEdit}
                 onAddItem={handleAddItem}
-                onUpdateItem={(day, itemId, payload) =>
-                  handleUpdateItem(itemId, {
-                    ...payload,
-                    dayKey: toDayKey(day.date),
-                    date: day.date
-                  })
-                }
+                onAddUnscheduledItem={handleAddUnscheduledItem}
+                onUpdateItemEntry={handleUpdateItem}
+                onUpdateDay={handleUpdateDayDetails}
                 onSelectBooking={handleSelectBookingEdit}
                 onToggleChecklist={handleToggleChecklist}
                 onDayRef={(dayId, node) => {

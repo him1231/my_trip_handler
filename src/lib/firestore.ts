@@ -27,7 +27,8 @@ import {
   TripBooking,
   TripLocation,
   TripMember,
-  TripRole
+  TripRole,
+  UnscheduledGroup
 } from "./types";
 import { HkiaFlightInfoResponse, HkiaLanguage } from "./hkiaFlightInfo";
 
@@ -67,6 +68,16 @@ const mapDay = (id: string, tripId: string, data: any): ItineraryDay => ({
   date: data.date?.toDate?.() ?? new Date(),
   dayNumber: data.dayNumber ?? 1,
   note: data.note,
+  createdAt: data.createdAt?.toDate?.() ?? undefined,
+  updatedAt: data.updatedAt?.toDate?.() ?? undefined
+});
+
+const mapUnscheduledGroup = (id: string, tripId: string, data: any): UnscheduledGroup => ({
+  id,
+  tripId,
+  title: data.title ?? "Unscheduled",
+  order: data.order ?? 0,
+  isDefault: data.isDefault ?? false,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
@@ -112,6 +123,7 @@ const mapItem = (id: string, tripId: string, data: any): ItineraryItem => ({
   id,
   tripId,
   dayKey: data.dayKey,
+  unscheduledGroupId: data.unscheduledGroupId ?? null,
   date: data.date?.toDate?.() ?? new Date(),
   order: data.order,
   type: data.type,
@@ -133,6 +145,7 @@ const mapBooking = (id: string, tripId: string, data: any): TripBooking => ({
   title: data.title,
   date: data.date?.toDate?.() ?? new Date(),
   dayKey: data.dayKey,
+  unscheduledGroupId: data.unscheduledGroupId ?? null,
   order: data.order,
   startTime: data.startTime?.toDate?.() ?? undefined,
   details: mapDetailsDates(data.details),
@@ -313,6 +326,20 @@ export const subscribeDays = (
   });
 };
 
+export const subscribeUnscheduledGroups = (
+  tripId: string,
+  onChange: (groups: UnscheduledGroup[]) => void
+) => {
+  const groupsRef = collection(db, "trips", tripId, "unscheduledGroups");
+  const q = query(groupsRef, orderBy("order", "asc"));
+  return onSnapshot(q, (snapshot) => {
+    const groups = snapshot.docs.map((docSnap) =>
+      mapUnscheduledGroup(docSnap.id, tripId, docSnap.data())
+    );
+    onChange(groups);
+  });
+};
+
 export const createDay = async (tripId: string, dayNumber: number, date: Date) => {
   const daysRef = collection(db, "trips", tripId, "days");
   const dayDoc = await addDoc(daysRef, {
@@ -325,6 +352,61 @@ export const createDay = async (tripId: string, dayNumber: number, date: Date) =
     updatedAt: serverTimestamp()
   });
   return dayDoc.id;
+};
+
+export const updateDay = async (
+  tripId: string,
+  dayId: string,
+  payload: Partial<Pick<ItineraryDay, "date" | "note" | "dayNumber">>
+) => {
+  const dayRef = doc(db, "trips", tripId, "days", dayId);
+  await updateDoc(dayRef, {
+    ...removeUndefined(payload),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const createUnscheduledGroup = async (
+  tripId: string,
+  payload: { title: string; order: number; isDefault?: boolean }
+) => {
+  const groupsRef = collection(db, "trips", tripId, "unscheduledGroups");
+  const groupDoc = await addDoc(groupsRef, {
+    title: payload.title,
+    order: payload.order,
+    isDefault: payload.isDefault ?? false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+  return groupDoc.id;
+};
+
+export const updateUnscheduledGroup = async (
+  tripId: string,
+  groupId: string,
+  payload: Partial<Pick<UnscheduledGroup, "title" | "order" | "isDefault">>
+) => {
+  const groupRef = doc(db, "trips", tripId, "unscheduledGroups", groupId);
+  await updateDoc(groupRef, {
+    ...removeUndefined(payload),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteUnscheduledGroup = async (tripId: string, groupId: string) => {
+  await deleteDoc(doc(db, "trips", tripId, "unscheduledGroups", groupId));
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
 };
 
 export const subscribeItinerary = (

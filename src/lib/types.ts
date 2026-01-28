@@ -45,6 +45,16 @@ export type ItineraryDay = {
   updatedAt?: Date;
 };
 
+export type UnscheduledGroup = {
+  id: string;
+  tripId: string;
+  title: string;
+  order: number;
+  isDefault?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
 export type ItineraryItemType =
   | "flight"
   | "hotel"
@@ -78,8 +88,9 @@ export type ItineraryItemDetails = {
 export type ItineraryItem = {
   id: string;
   tripId: string;
-  dayKey: string;
-  date: Date;
+  dayKey?: string | null;
+  date?: Date;
+  unscheduledGroupId?: string | null;
   order?: number;
   type: ItineraryItemType;
   title: string;
@@ -99,7 +110,8 @@ export type TripBooking = {
   type: "flight" | "hotel";
   title: string;
   date: Date;
-  dayKey?: string;
+  dayKey?: string | null;
+  unscheduledGroupId?: string | null;
   order?: number;
   startTime?: Date;
   details?: ItineraryItemDetails;
@@ -111,4 +123,6 @@ export type TripBooking = {
 export type TimelineEntry =
   | { kind: "itinerary"; item: ItineraryItem }
   | { kind: "booking"; booking: TripBooking }
-  | { kind: "day"; day: ItineraryDay; dayKey: string };
+  | { kind: "day"; day: ItineraryDay; dayKey: string }
+  | { kind: "group"; group: UnscheduledGroup }
+  | { kind: "separator"; label: string };

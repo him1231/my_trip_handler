@@ -77,6 +77,21 @@ const ItineraryItem = ({
     );
   }
 
+  if (entry.kind === "group") {
+    return (
+      <div className="flex flex-col gap-2">
+        <Separator />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{entry.group.title}</span>
+          {entry.group.isDefault ? (
+            <Badge variant="outline">default</Badge>
+          ) : null}
+        </div>
+        <Separator />
+      </div>
+    );
+  }
+
   const isBooking = entry.kind === "booking";
   const item = entry.kind === "itinerary" ? entry.item : null;
   const booking = entry.kind === "booking" ? entry.booking : null;
