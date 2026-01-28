@@ -138,8 +138,6 @@ const SortableEntry = ({
     transition
   };
 
-  let renderedGroupSeparator = false;
-
   return (
     <div ref={setNodeRef} style={style}>
       <ItineraryItemCard

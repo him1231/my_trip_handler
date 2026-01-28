@@ -31,6 +31,7 @@ import {
   createDay,
   deleteDay,
   deleteBooking,
+  deleteUnscheduledGroup,
   deleteTrip,
   subscribeDays,
   subscribeItinerary,
@@ -80,6 +81,8 @@ const TripPage = () => {
   const [newGroupName, setNewGroupName] = useState("");
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
+  const [openUnscheduledMenuId, setOpenUnscheduledMenuId] = useState<string | null>(null);
+  const unscheduledMenuRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal">("itinerary");
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -164,6 +167,24 @@ const TripPage = () => {
       setName(pending.name);
     }
   }, [pending]);
+
+  useEffect(() => {
+    if (!openUnscheduledMenuId) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!unscheduledMenuRef.current) {
+        return;
+      }
+      if (!unscheduledMenuRef.current.contains(event.target as Node)) {
+        setOpenUnscheduledMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openUnscheduledMenuId]);
 
   const role = useMemo(() => {
     if (!user || !trip) {
@@ -618,6 +639,51 @@ const TripPage = () => {
       order: nextOrder,
       isDefault: false
     });
+  };
+
+  const handleDeleteUnscheduledGroup = async (group: UnscheduledGroup) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    if (group.isDefault) {
+      window.alert("Default header cannot be deleted.");
+      return;
+    }
+    const confirmed = window.confirm(`Delete “${group.title}” and move its items to the default header?`);
+    if (!confirmed) {
+      return;
+    }
+
+    let targetGroupId = defaultUnscheduledGroup?.id ?? null;
+    if (!targetGroupId) {
+      targetGroupId = await createUnscheduledGroup(tripId, {
+        title: "Unscheduled",
+        order: unscheduledGroups.length,
+        isDefault: true
+      });
+    }
+
+    const itemsToMove = itineraryItems.filter((item) => item.unscheduledGroupId === group.id);
+    const bookingsToMove = bookings.filter((booking) => booking.unscheduledGroupId === group.id);
+
+    await Promise.all([
+      ...itemsToMove.map((item) =>
+        updateItem(tripId, item.id, {
+          dayKey: null,
+          unscheduledGroupId: targetGroupId,
+          order: item.order
+        })
+      ),
+      ...bookingsToMove.map((booking) =>
+        updateBooking(tripId, booking.id, {
+          dayKey: null,
+          unscheduledGroupId: targetGroupId,
+          order: booking.order
+        })
+      )
+    ]);
+
+    await deleteUnscheduledGroup(tripId, group.id);
   };
 
   const handleUpdateDayDetails = async (day: DayType, payload: { date: Date; note?: string }) => {
@@ -1100,10 +1166,50 @@ const TripPage = () => {
                   return (
                     <div
                       key={group.id}
-                      className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
                     >
-                      <span className="font-medium">{group.title}</span>
-                      <span className="text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{group.title}</span>
+                        {group.isDefault ? (
+                          <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                            Default
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground">{count} item{count === 1 ? "" : "s"}</span>
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!canEdit || group.isDefault}
+                            className="h-7 w-7 p-0"
+                            onClick={() =>
+                              setOpenUnscheduledMenuId((prev) => (prev === group.id ? null : group.id))
+                            }
+                            aria-label="Open menu"
+                          >
+                            ⋯
+                          </Button>
+                          {openUnscheduledMenuId === group.id ? (
+                            <div
+                              ref={unscheduledMenuRef}
+                              className="absolute right-0 top-full z-10 mt-2 w-32 rounded-md border bg-white shadow"
+                            >
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-slate-100"
+                                onClick={() => {
+                                  setOpenUnscheduledMenuId(null);
+                                  handleDeleteUnscheduledGroup(group);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
