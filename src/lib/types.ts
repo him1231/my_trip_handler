@@ -40,6 +40,7 @@ export type ItineraryDay = {
   tripId: string;
   date: Date;
   dayNumber: number;
+  color?: string;
   note?: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -51,6 +52,7 @@ export type UnscheduledGroup = {
   title: string;
   order: number;
   isDefault?: boolean;
+  color?: string;
   createdAt?: Date;
   updatedAt?: Date;
 };

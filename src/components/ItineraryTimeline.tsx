@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { ChecklistItem, ItineraryDay, ItineraryItem, TimelineEntry, UnscheduledGroup } from "../lib/types";
 import { Button } from "./ui/button";
@@ -15,6 +15,7 @@ import { Separator } from "./ui/separator";
 import { Textarea } from "./ui/textarea";
 import ItineraryItemForm from "./ItineraryItemForm";
 import ItineraryItemCard from "./ItineraryItem";
+import { Card } from "./ui/card";
 
 type ItineraryTimelineEntry = TimelineEntry & { entryId: string; dayKey: string };
 
@@ -23,6 +24,8 @@ type ItineraryTimelineProps = {
   sortableEntryIds: string[];
   dayByKey: Map<string, ItineraryDay>;
   canEdit: boolean;
+  externalEditItemId?: string | null;
+  onExternalEditHandled?: () => void;
   onAddItem: (day: ItineraryDay, payload: {
     title: string;
     type: ItineraryItem["type"];
@@ -411,6 +414,8 @@ const ItineraryTimeline = ({
   sortableEntryIds,
   dayByKey,
   canEdit,
+  externalEditItemId,
+  onExternalEditHandled,
   onAddItem,
   onAddUnscheduledItem,
   onUpdateItemEntry,
@@ -428,6 +433,21 @@ const ItineraryTimeline = ({
     setActiveAddDayKey(null);
   }, []);
 
+  useEffect(() => {
+    if (!externalEditItemId) {
+      return;
+    }
+    const entry = entries.find(
+      (current) => current.kind === "itinerary" && current.item.id === externalEditItemId
+    );
+    if (entry && entry.kind === "itinerary") {
+      setEditingItem(entry.item);
+      setActiveAddDayKey(null);
+      setActiveAddGroupKey(null);
+      onExternalEditHandled?.();
+    }
+  }, [entries, externalEditItemId, onExternalEditHandled]);
+
   const sortedEntries = useMemo(() => entries, [entries]);
   const sectionEntryCount = useMemo(() => {
     const counts = new Map<string, number>();
@@ -442,7 +462,7 @@ const ItineraryTimeline = ({
   }, [sortedEntries]);
   return (
     <SortableContext items={sortableEntryIds} strategy={verticalListSortingStrategy}>
-      <div className="flex flex-col gap-4">
+      <Card className="flex flex-col gap-4 p-6">
         {sortedEntries.map((entry) => {
           if (entry.kind === "day") {
             const isActive = activeAddDayKey === entry.dayKey;
@@ -540,7 +560,7 @@ const ItineraryTimeline = ({
             />
           );
         })}
-      </div>
+      </Card>
     </SortableContext>
   );
 };

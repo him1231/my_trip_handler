@@ -67,6 +67,7 @@ const mapDay = (id: string, tripId: string, data: any): ItineraryDay => ({
   tripId,
   date: data.date?.toDate?.() ?? new Date(),
   dayNumber: data.dayNumber ?? 1,
+  color: data.color ?? undefined,
   note: data.note,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
@@ -78,6 +79,7 @@ const mapUnscheduledGroup = (id: string, tripId: string, data: any): Unscheduled
   title: data.title ?? "Unscheduled",
   order: data.order ?? 0,
   isDefault: data.isDefault ?? false,
+  color: data.color ?? undefined,
   createdAt: data.createdAt?.toDate?.() ?? undefined,
   updatedAt: data.updatedAt?.toDate?.() ?? undefined
 });
@@ -306,9 +308,32 @@ export const addLocation = async (
 ) => {
   const locationsRef = collection(db, "trips", tripId, "locations");
   await addDoc(locationsRef, {
-    ...location,
+    ...removeUndefined(location),
     createdAt: serverTimestamp()
   });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const updateLocation = async (
+  tripId: string,
+  locationId: string,
+  payload: Partial<Pick<TripLocation, "name" | "note" | "address">>
+) => {
+  const locationRef = doc(db, "trips", tripId, "locations", locationId);
+  await updateDoc(locationRef, {
+    ...removeUndefined(payload),
+    updatedAt: serverTimestamp()
+  });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteLocation = async (tripId: string, locationId: string) => {
+  const locationRef = doc(db, "trips", tripId, "locations", locationId);
+  await deleteDoc(locationRef);
   await updateDoc(doc(tripsCollection, tripId), {
     updatedAt: serverTimestamp()
   });
@@ -357,7 +382,7 @@ export const createDay = async (tripId: string, dayNumber: number, date: Date) =
 export const updateDay = async (
   tripId: string,
   dayId: string,
-  payload: Partial<Pick<ItineraryDay, "date" | "note" | "dayNumber">>
+  payload: Partial<Pick<ItineraryDay, "date" | "note" | "dayNumber" | "color">>
 ) => {
   const dayRef = doc(db, "trips", tripId, "days", dayId);
   await updateDoc(dayRef, {
@@ -390,7 +415,7 @@ export const createUnscheduledGroup = async (
 export const updateUnscheduledGroup = async (
   tripId: string,
   groupId: string,
-  payload: Partial<Pick<UnscheduledGroup, "title" | "order" | "isDefault">>
+  payload: Partial<Pick<UnscheduledGroup, "title" | "order" | "isDefault" | "color">>
 ) => {
   const groupRef = doc(db, "trips", tripId, "unscheduledGroups", groupId);
   await updateDoc(groupRef, {
@@ -494,6 +519,13 @@ export const updateItem = async (
     ...removeUndefined(item),
     updatedAt: serverTimestamp()
   });
+  await updateDoc(doc(tripsCollection, tripId), {
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const deleteItem = async (tripId: string, itemId: string) => {
+  await deleteDoc(doc(db, "trips", tripId, "itinerary", itemId));
   await updateDoc(doc(tripsCollection, tripId), {
     updatedAt: serverTimestamp()
   });

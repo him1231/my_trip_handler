@@ -9,7 +9,10 @@ const base = import.meta.env.VITE_BASE_PATH || "/";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter basename={base}>
+    <BrowserRouter
+      basename={base}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <AuthProvider>
         <App />
       </AuthProvider>

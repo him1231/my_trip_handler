@@ -1,8 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type MouseEvent as ReactMouseEvent
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { closestCenter, DndContext, DragEndEvent } from "@dnd-kit/core";
+import { useLayoutHeader } from "../components/Layout";
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection
+} from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { arrayMove } from "@dnd-kit/sortable";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import DaySelector from "../components/DaySelector";
 import ShareDialog from "../components/ShareDialog";
 import ItineraryTimeline from "../components/ItineraryTimeline";
@@ -12,6 +30,14 @@ import TripBookingsTab from "../components/TripBookingsTab";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { Checkbox } from "../components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "../components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +57,8 @@ import {
   createDay,
   deleteDay,
   deleteBooking,
+  deleteItem,
+  deleteLocation,
   deleteUnscheduledGroup,
   deleteTrip,
   subscribeDays,
@@ -39,6 +67,7 @@ import {
   subscribeBookings,
   subscribeLocations,
   subscribeTrip,
+  updateLocation,
   updateTripDestinationPlaceId,
   updateDay,
   updateBooking,
@@ -60,10 +89,54 @@ type TimelineContentEntry =
   | (TimelineEntry & { kind: "itinerary"; entryId: string; dayKey: string; order?: number })
   | (TimelineEntry & { kind: "booking"; entryId: string; dayKey: string; order?: number });
 
+const MapHeader = ({ id, children }: { id: string; children: ReactNode }) => {
+  const { setNodeRef, isOver, transform, transition } = useSortable({ id, disabled: true });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isOver ? "rounded-lg bg-muted/40 p-2" : "p-2"}
+    >
+      {children}
+    </div>
+  );
+};
+
+const MapSortableItem = ({
+  id,
+  children
+}: {
+  id: string;
+  children: (dragHandleProps: Record<string, unknown>) => ReactNode;
+}) => {
+  const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "opacity-70" : undefined}
+    >
+      {children({ ...listeners, ...attributes })}
+    </div>
+  );
+};
+
+const formatMapDayLabel = (day: DayType) =>
+  `Day ${day.dayNumber} · ${day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+
 const TripPage = () => {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setHeaderContent } = useLayoutHeader();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [locations, setLocations] = useState<TripLocation[]>([]);
   const [days, setDays] = useState<DayType[]>([]);
@@ -84,7 +157,95 @@ const TripPage = () => {
   const [openUnscheduledMenuId, setOpenUnscheduledMenuId] = useState<string | null>(null);
   const unscheduledMenuRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal">("itinerary");
+  const [mapFilterSelections, setMapFilterSelections] = useState<string[]>([]);
+  const [mapFilterTouched, setMapFilterTouched] = useState(false);
+  const [showSavedLocations, setShowSavedLocations] = useState(true);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+  const [editingLocationName, setEditingLocationName] = useState("");
+  const [editingLocationAddress, setEditingLocationAddress] = useState("");
+  const [editingLocationNote, setEditingLocationNote] = useState("");
+  const [savingLocationEdit, setSavingLocationEdit] = useState(false);
+  const [selectedSavedLocationId, setSelectedSavedLocationId] = useState<string | null>(null);
+  const [openLocationMenuId, setOpenLocationMenuId] = useState<string | null>(null);
+  const locationMenuRef = useRef<HTMLDivElement | null>(null);
+  const [assignLocationId, setAssignLocationId] = useState<string | null>(null);
+  const [assignSectionKey, setAssignSectionKey] = useState<string>("");
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [activeMapDragId, setActiveMapDragId] = useState<string | null>(null);
+  const [openMapItemMenuId, setOpenMapItemMenuId] = useState<string | null>(null);
+  const mapItemMenuRef = useRef<HTMLDivElement | null>(null);
+  const [mapEditItemId, setMapEditItemId] = useState<string | null>(null);
+  const [selectedMapItemId, setSelectedMapItemId] = useState<string | null>(null);
   const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  
+  const handleSelectSavedLocation = (location: TripLocation) => {
+    setSelectedSavedLocationId(location.id);
+    setPending(null);
+  };
+
+  const handleOpenAssignDialog = (location: TripLocation) => {
+    setAssignLocationId(location.id);
+    setAssignSectionKey(mapSectionOptions[0]?.value ?? "");
+    setAssignDialogOpen(true);
+  };
+
+  const handleAssignLocationToSection = async () => {
+    if (!tripId || !assignLocationId || !assignSectionKey || !canEdit) {
+      return;
+    }
+    const location = locationById.get(assignLocationId);
+    if (!location) {
+      return;
+    }
+    const existingItem = itineraryItems.find((item) => item.locationId === location.id);
+
+    if (isUnscheduledSectionKey(assignSectionKey)) {
+      const groupId = parseUnscheduledGroupId(assignSectionKey);
+      if (existingItem) {
+        await updateItem(tripId, existingItem.id, {
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          date: existingItem.date ?? new Date()
+        });
+      } else {
+        await addItem(tripId, {
+          title: location.name,
+          type: "activity",
+          locationId: location.id,
+          dayKey: null,
+          unscheduledGroupId: groupId,
+          date: new Date(),
+          createdBy: user?.uid ?? "unknown"
+        });
+      }
+    } else {
+      const targetDay = dayByKey.get(assignSectionKey);
+      if (!targetDay) {
+        return;
+      }
+      if (existingItem) {
+        await updateItem(tripId, existingItem.id, {
+          dayKey: assignSectionKey,
+          unscheduledGroupId: null,
+          date: targetDay.date,
+          startTime: applyDayToTime(targetDay.date, existingItem.startTime)
+        });
+      } else {
+        await addItem(tripId, {
+          title: location.name,
+          type: "activity",
+          locationId: location.id,
+          dayKey: assignSectionKey,
+          unscheduledGroupId: null,
+          date: targetDay.date,
+          createdBy: user?.uid ?? "unknown"
+        });
+      }
+    }
+
+    setAssignDialogOpen(false);
+    setAssignLocationId(null);
+  };
 
   useEffect(() => {
     if (!tripId) {
@@ -168,6 +329,33 @@ const TripPage = () => {
     }
   }, [pending]);
 
+  const findSavedLocationMatch = useCallback(
+    (selection: { lat: number; lng: number }) => {
+      const tolerance = 0.0001;
+      return (
+        locations.find(
+          (location) =>
+            Math.abs(location.lat - selection.lat) < tolerance &&
+            Math.abs(location.lng - selection.lng) < tolerance
+        ) ?? null
+      );
+    },
+    [locations]
+  );
+
+  useEffect(() => {
+    if (!pending) {
+      return;
+    }
+    const match = findSavedLocationMatch(pending);
+    if (!match) {
+      setSelectedSavedLocationId(null);
+      return;
+    }
+    setSelectedSavedLocationId(match.id);
+    setPending(null);
+  }, [findSavedLocationMatch, pending]);
+
   useEffect(() => {
     if (!openUnscheduledMenuId) {
       return;
@@ -185,6 +373,42 @@ const TripPage = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openUnscheduledMenuId]);
+
+  useEffect(() => {
+    if (!openLocationMenuId) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!locationMenuRef.current) {
+        return;
+      }
+      if (!locationMenuRef.current.contains(event.target as Node)) {
+        setOpenLocationMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openLocationMenuId]);
+
+  useEffect(() => {
+    if (!openMapItemMenuId) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!mapItemMenuRef.current) {
+        return;
+      }
+      if (!mapItemMenuRef.current.contains(event.target as Node)) {
+        setOpenMapItemMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMapItemMenuId]);
 
   const role = useMemo(() => {
     if (!user || !trip) {
@@ -262,10 +486,8 @@ const TripPage = () => {
   const isUnscheduledSectionKey = (key: string) => key.startsWith("unscheduled:");
   const parseUnscheduledGroupId = (key: string) => key.replace("unscheduled:", "");
 
-  const timelineEntries = useMemo(() => {
-    const entries: TimelineContentEntry[] = [];
-
-    const resolveItemSectionKey = (item: ItineraryItem) => {
+  const resolveItemSectionKey = useCallback(
+    (item: ItineraryItem) => {
       if (item.dayKey) {
         return item.dayKey;
       }
@@ -282,7 +504,12 @@ const TripPage = () => {
         return toDayKey(item.date);
       }
       return toDayKey(new Date());
-    };
+    },
+    [buildSectionKey, defaultUnscheduledGroup, toDayKey, unscheduledGroupById]
+  );
+
+  const timelineEntries = useMemo(() => {
+    const entries: TimelineContentEntry[] = [];
 
     const resolveBookingSectionKey = (booking: TripBooking) => {
       if (booking.dayKey) {
@@ -323,7 +550,7 @@ const TripPage = () => {
     });
 
     return entries;
-  }, [bookings, buildSectionKey, defaultUnscheduledGroup, itineraryItems, unscheduledGroupById]);
+  }, [bookings, buildSectionKey, defaultUnscheduledGroup, itineraryItems, resolveItemSectionKey, unscheduledGroupById]);
 
   const entriesBySection = useMemo(() => {
     const grouped = new Map<string, TimelineContentEntry[]>();
@@ -374,6 +601,427 @@ const TripPage = () => {
     });
     return counts;
   }, [timelineEntries]);
+
+  const locationById = useMemo(() => {
+    const map = new Map<string, TripLocation>();
+    locations.forEach((location) => {
+      map.set(location.id, location);
+    });
+    return map;
+  }, [locations]);
+
+  const mapSectionOptions = useMemo(
+    () => [
+      ...days.map((day) => ({ value: toDayKey(day.date), label: formatMapDayLabel(day) })),
+      ...unscheduledGroups.map((group) => ({ value: buildSectionKey(group.id), label: group.title }))
+    ],
+    [buildSectionKey, days, toDayKey, unscheduledGroups]
+  );
+
+  const dayColorFallbacks = ["#2563eb", "#0ea5e9", "#14b8a6", "#10b981", "#f59e0b", "#f97316", "#ef4444", "#8b5cf6"];
+  const groupColorFallbacks = ["#7c3aed", "#a855f7", "#ec4899", "#f43f5e", "#f97316", "#f59e0b", "#22c55e"];
+
+  const dayColorByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    days.forEach((day, index) => {
+      map.set(toDayKey(day.date), day.color ?? dayColorFallbacks[index % dayColorFallbacks.length]);
+    });
+    return map;
+  }, [days, dayColorFallbacks, toDayKey]);
+
+  const groupColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    unscheduledGroups.forEach((group, index) => {
+      map.set(group.id, group.color ?? groupColorFallbacks[index % groupColorFallbacks.length]);
+    });
+    return map;
+  }, [groupColorFallbacks, unscheduledGroups]);
+
+  const mapSectionKeys = useMemo(
+    () => mapSectionOptions.map((option) => option.value),
+    [mapSectionOptions]
+  );
+
+  useEffect(() => {
+    if (mapFilterTouched) {
+      return;
+    }
+    setMapFilterSelections((prev) => {
+      if (prev.length === mapSectionKeys.length && prev.every((value, index) => value === mapSectionKeys[index])) {
+        return prev;
+      }
+      return mapSectionKeys;
+    });
+  }, [mapFilterTouched, mapSectionKeys]);
+
+  const mapItemsBySection = useMemo(() => {
+    const grouped = new Map<string, ItineraryItem[]>();
+    days.forEach((day) => {
+      grouped.set(toDayKey(day.date), []);
+    });
+    unscheduledGroups.forEach((group) => {
+      grouped.set(buildSectionKey(group.id), []);
+    });
+
+    itineraryItems.forEach((item) => {
+      if (!item.locationId) {
+        return;
+      }
+      if (!locationById.has(item.locationId)) {
+        return;
+      }
+      const sectionKey = resolveItemSectionKey(item);
+      if (!grouped.has(sectionKey)) {
+        grouped.set(sectionKey, []);
+      }
+      grouped.get(sectionKey)?.push(item);
+    });
+
+    grouped.forEach((items) => {
+      items.sort((a, b) => {
+        const orderA = a.order;
+        const orderB = b.order;
+        if (orderA !== undefined || orderB !== undefined) {
+          if (orderA === undefined) return 1;
+          if (orderB === undefined) return -1;
+          return orderA - orderB;
+        }
+        const timeA = a.startTime?.getTime() ?? new Date(a.date ?? Date.now()).setHours(0, 0, 0, 0);
+        const timeB = b.startTime?.getTime() ?? new Date(b.date ?? Date.now()).setHours(0, 0, 0, 0);
+        return timeA - timeB;
+      });
+    });
+
+    return grouped;
+  }, [buildSectionKey, days, itineraryItems, locationById, resolveItemSectionKey, toDayKey, unscheduledGroups]);
+
+  const mapSelectedSectionSet = useMemo(
+    () => new Set(mapFilterSelections),
+    [mapFilterSelections]
+  );
+
+  const mapSelectedItemsBySection = useMemo(() => {
+    const selected = new Map<string, ItineraryItem[]>();
+    mapItemsBySection.forEach((items, sectionKey) => {
+      if (mapSelectedSectionSet.has(sectionKey)) {
+        selected.set(sectionKey, items);
+      }
+    });
+    return selected;
+  }, [mapItemsBySection, mapSelectedSectionSet]);
+
+  const mapSelectedItems = useMemo(
+    () => Array.from(mapSelectedItemsBySection.values()).flat(),
+    [mapSelectedItemsBySection]
+  );
+
+  const mapItemSectionById = useMemo(() => {
+    const map = new Map<string, string>();
+    mapSelectedItemsBySection.forEach((items, sectionKey) => {
+      items.forEach((item) => map.set(item.id, sectionKey));
+    });
+    return map;
+  }, [mapSelectedItemsBySection]);
+
+  const mapFlatList = useMemo(() => {
+    const entries: Array<{ type: "header"; sectionKey: string } | { type: "item"; sectionKey: string; item: ItineraryItem }> = [];
+    mapSelectedItemsBySection.forEach((items, sectionKey) => {
+      entries.push({ type: "header", sectionKey });
+      items.forEach((item) => entries.push({ type: "item", sectionKey, item }));
+    });
+    return entries;
+  }, [mapSelectedItemsBySection]);
+
+  const mapCollisionDetection = useMemo<CollisionDetection>(
+    () => (args) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) {
+        return pointerCollisions;
+      }
+      return rectIntersection(args);
+    },
+    []
+  );
+
+  const mapSortableIds = useMemo(
+    () =>
+      mapFlatList.map((entry) =>
+        entry.type === "header" ? `map-header:${entry.sectionKey}` : `map-item:${entry.item.id}`
+      ),
+    [mapFlatList]
+  );
+
+  const resolveSectionLabel = useCallback(
+    (sectionKey: string) => {
+      if (isUnscheduledSectionKey(sectionKey)) {
+        const groupId = parseUnscheduledGroupId(sectionKey);
+        return unscheduledGroupById.get(groupId)?.title ?? "Unscheduled";
+      }
+      const day = dayByKey.get(sectionKey);
+      return day ? formatMapDayLabel(day) : sectionKey;
+    },
+    [dayByKey, unscheduledGroupById]
+  );
+
+  const handleMapDragEnd = async (event: DragEndEvent) => {
+    if (!canEdit || !tripId) {
+      return;
+    }
+    const { active, over } = event;
+    if (!over) {
+      return;
+    }
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (!activeId.startsWith("map-item:")) {
+      return;
+    }
+    const activeItemId = activeId.replace("map-item:", "");
+    const fromSectionKey = mapItemSectionById.get(activeItemId);
+    if (!fromSectionKey) {
+      return;
+    }
+
+    const isHeaderId = (id: string) => id.startsWith("map-header:");
+    const sectionKeyFromHeaderId = (id: string) => id.replace("map-header:", "");
+
+    const activeIndex = mapSortableIds.indexOf(activeId);
+    const overIndex = mapSortableIds.indexOf(overId);
+    if (activeIndex === -1 || overIndex === -1) {
+      return;
+    }
+
+    const isHeaderDrop = isHeaderId(overId);
+    const isAboveHeader = isHeaderDrop ? activeIndex > overIndex : false;
+
+    const buildNextFlatIds = () => {
+      if (!isHeaderDrop) {
+        return arrayMove(mapSortableIds, activeIndex, overIndex);
+      }
+      const updated = [...mapSortableIds];
+      const removedIndex = updated.indexOf(activeId);
+      if (removedIndex === -1) {
+        return null;
+      }
+      updated.splice(removedIndex, 1);
+
+      const headerIndex = updated.indexOf(overId);
+      if (headerIndex === -1) {
+        return null;
+      }
+      const insertAt = isAboveHeader ? headerIndex : headerIndex + 1;
+      const clampedInsertAt = Math.min(Math.max(insertAt, 0), updated.length);
+      updated.splice(clampedInsertAt, 0, activeId);
+      return updated;
+    };
+
+    const nextFlatIds = buildNextFlatIds();
+    if (!nextFlatIds) {
+      return;
+    }
+
+    const findTargetSectionKey = (ids: string[], index: number) => {
+      for (let i = index; i >= 0; i -= 1) {
+        const id = ids[i];
+        if (isHeaderId(id)) {
+          return sectionKeyFromHeaderId(id);
+        }
+      }
+      const firstHeader = ids.find((id) => isHeaderId(id));
+      return firstHeader ? sectionKeyFromHeaderId(firstHeader) : null;
+    };
+
+    const targetSectionKey = isHeaderDrop
+      ? isAboveHeader
+        ? (() => {
+          const headerIndex = nextFlatIds.indexOf(overId);
+          for (let i = headerIndex - 1; i >= 0; i -= 1) {
+            const id = nextFlatIds[i];
+            if (isHeaderId(id)) {
+              return sectionKeyFromHeaderId(id);
+            }
+          }
+          return findTargetSectionKey(nextFlatIds, headerIndex);
+        })()
+        : sectionKeyFromHeaderId(overId)
+      : findTargetSectionKey(nextFlatIds, overIndex);
+    if (!targetSectionKey) {
+      return;
+    }
+
+    const nextSectionOrders = new Map<string, string[]>();
+    let currentSectionKey: string | null = null;
+    nextFlatIds.forEach((id) => {
+      if (isHeaderId(id)) {
+        currentSectionKey = sectionKeyFromHeaderId(id);
+        if (currentSectionKey && !nextSectionOrders.has(currentSectionKey)) {
+          nextSectionOrders.set(currentSectionKey, []);
+        }
+        return;
+      }
+      if (currentSectionKey && id.startsWith("map-item:")) {
+        nextSectionOrders.get(currentSectionKey)?.push(id);
+      }
+    });
+
+    const nextFrom = nextSectionOrders.get(fromSectionKey) ?? [];
+    const nextTo = nextSectionOrders.get(targetSectionKey) ?? [];
+
+    if (fromSectionKey === targetSectionKey) {
+      await Promise.all(
+        nextFrom.map((id, index) => updateItem(tripId, id.replace("map-item:", ""), { order: index }))
+      );
+      return;
+    }
+
+    const activeItem = itineraryItems.find((item) => item.id === activeItemId);
+    if (!activeItem) {
+      return;
+    }
+
+    if (isUnscheduledSectionKey(targetSectionKey)) {
+      const groupId = parseUnscheduledGroupId(targetSectionKey);
+      await updateItem(tripId, activeItem.id, {
+        dayKey: null,
+        unscheduledGroupId: groupId,
+        date: activeItem.date ?? new Date()
+      });
+    } else {
+      const targetDay = dayByKey.get(targetSectionKey);
+      if (!targetDay) {
+        return;
+      }
+      await updateItem(tripId, activeItem.id, {
+        dayKey: targetSectionKey,
+        date: targetDay.date,
+        unscheduledGroupId: null,
+        startTime: applyDayToTime(targetDay.date, activeItem.startTime)
+      });
+    }
+
+    await Promise.all([
+      Promise.all(
+        nextFrom.map((id, index) => updateItem(tripId, id.replace("map-item:", ""), { order: index }))
+      ),
+      Promise.all(
+        nextTo.map((id, index) => updateItem(tripId, id.replace("map-item:", ""), { order: index }))
+      )
+    ]);
+  };
+
+  const mapMarkers = useMemo(() => {
+    const seen = new Set<string>();
+    const output: Array<{
+      id: string;
+      lat: number;
+      lng: number;
+      name: string;
+      address?: string;
+      kind: "day" | "group" | "saved";
+      color?: string;
+    }> = [];
+
+    mapSelectedItemsBySection.forEach((items, sectionKey) => {
+      const isGroup = isUnscheduledSectionKey(sectionKey);
+      const kind = isGroup ? "group" : "day";
+      const color = isGroup
+        ? groupColorById.get(parseUnscheduledGroupId(sectionKey))
+        : dayColorByKey.get(sectionKey);
+      items.forEach((item) => {
+        if (!item.locationId) {
+          return;
+        }
+        const location = locationById.get(item.locationId);
+        if (!location || seen.has(location.id)) {
+          return;
+        }
+        seen.add(location.id);
+        output.push({
+          id: location.id,
+          lat: location.lat,
+          lng: location.lng,
+          name: location.name,
+          address: location.address,
+          kind,
+          color
+        });
+      });
+    });
+
+    if (showSavedLocations) {
+      locations.forEach((location) => {
+        if (seen.has(location.id)) {
+          return;
+        }
+        seen.add(location.id);
+        output.push({
+          id: location.id,
+          lat: location.lat,
+          lng: location.lng,
+          name: location.name,
+          address: location.address,
+          kind: "saved"
+        });
+      });
+    }
+
+    return output;
+  }, [dayColorByKey, groupColorById, locationById, locations, mapSelectedItemsBySection, showSavedLocations]);
+  
+  const selectedLocationForMap = useMemo(() => {
+    if (selectedSavedLocationId) {
+      const saved = locations.find((location) => location.id === selectedSavedLocationId);
+      if (saved) {
+        return {
+          lat: saved.lat,
+          lng: saved.lng,
+          name: saved.name,
+          address: saved.address
+        };
+      }
+    }
+    return pending;
+  }, [locations, pending, selectedSavedLocationId]);
+
+  useEffect(() => {
+    if (!selectedLocationForMap) {
+      setSelectedMapItemId(null);
+      return;
+    }
+    const match = mapSelectedItems.find((item) => {
+      if (!item.locationId) {
+        return false;
+      }
+      const location = locationById.get(item.locationId);
+      if (!location) {
+        return false;
+      }
+      return (
+        Math.abs(location.lat - selectedLocationForMap.lat) < 0.0001 &&
+        Math.abs(location.lng - selectedLocationForMap.lng) < 0.0001
+      );
+    });
+    setSelectedMapItemId(match?.id ?? null);
+  }, [locationById, mapSelectedItems, selectedLocationForMap]);
+
+  const buildLocationQuery = (location: TripLocation) => {
+    const address = location.address?.trim();
+    if (address) {
+      return address;
+    }
+    const name = location.name?.trim();
+    if (name) {
+      return name;
+    }
+    return `${location.lat},${location.lng}`;
+  };
+
+  const handleOpenRoute = useCallback((origin: TripLocation, destination: TripLocation) => {
+    const originQuery = encodeURIComponent(buildLocationQuery(origin));
+    const destinationQuery = encodeURIComponent(buildLocationQuery(destination));
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${originQuery}&destination=${destinationQuery}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
 
   const flatTimeline = useMemo(() => {
     const flattened: Array<TimelineEntry & { entryId: string; dayKey: string }> = [];
@@ -1029,38 +1677,134 @@ const TripPage = () => {
     }
   };
 
-  const handleDestinationPlaceId = async (placeId: string) => {
-    if (!tripId || !canEdit || trip?.destinationPlaceId === placeId) {
-      return;
-    }
-    await updateTripDestinationPlaceId(tripId, placeId);
+  const handleStartLocationEdit = (location: TripLocation) => {
+    setEditingLocationId(location.id);
+    setEditingLocationName(location.name ?? "");
+    setEditingLocationAddress(location.address ?? "");
+    setEditingLocationNote(location.note ?? "");
   };
 
-  if (!tripId) {
-    return <p className="text-sm text-muted-foreground">Missing trip id.</p>;
-  }
+  const handleCancelLocationEdit = () => {
+    setEditingLocationId(null);
+    setEditingLocationName("");
+    setEditingLocationAddress("");
+    setEditingLocationNote("");
+  };
 
-  if (!trip) {
-    return <p className="text-sm text-muted-foreground">Loading trip details...</p>;
-  }
+  const handleSaveLocationEdit = async () => {
+    if (!tripId || !editingLocationId || !editingLocationName.trim()) {
+      return;
+    }
+    setSavingLocationEdit(true);
+    try {
+      await updateLocation(tripId, editingLocationId, {
+        name: editingLocationName.trim(),
+        address: editingLocationAddress.trim() || undefined,
+        note: editingLocationNote.trim() || undefined
+      });
+      handleCancelLocationEdit();
+    } finally {
+      setSavingLocationEdit(false);
+    }
+  };
 
-  const tripStart = trip.startDate ? new Date(trip.startDate) : null;
-  const tripEnd = trip.endDate ? new Date(trip.endDate) : null;
+  const handleDeleteLocation = async (location: TripLocation) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this location?");
+    if (!confirmed) {
+      return;
+    }
+    await deleteLocation(tripId, location.id);
+    if (selectedSavedLocationId === location.id) {
+      setSelectedSavedLocationId(null);
+    }
+  };
+
+  const handleEditMapItem = (item: ItineraryItem) => {
+    setOpenMapItemMenuId(null);
+    setMapEditItemId(item.id);
+    setActiveTab("itinerary");
+  };
+
+  const handleDeleteMapItem = async (item: ItineraryItem) => {
+    if (!tripId || !canEdit) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this itinerary item?");
+    if (!confirmed) {
+      return;
+    }
+    await deleteItem(tripId, item.id);
+  };
+
+  const handleDestinationPlaceId = useCallback(
+    async (placeId: string) => {
+      if (!tripId || !canEdit || trip?.destinationPlaceId === placeId) {
+        return;
+      }
+      await updateTripDestinationPlaceId(tripId, placeId);
+    },
+    [canEdit, trip?.destinationPlaceId, tripId]
+  );
+
+  const tripStart = trip?.startDate ? new Date(trip.startDate) : null;
+  const tripEnd = trip?.endDate ? new Date(trip.endDate) : null;
   const tripDuration =
     tripStart && tripEnd
       ? Math.floor((tripEnd.getTime() - tripStart.getTime()) / 86400000) + 1
       : null;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <Card className="p-6">
+  const headerContent = useMemo(() => {
+    if (!trip) {
+      return null;
+    }
+    return (
+      <Card className="w-full px-3 shadow-none border-none bg-transparent">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold">{trip.title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className="text-lg font-semibold">{trip.title}</h2>
+
+            <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Move saved location to day/group</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="assign-section">Choose day or group</Label>
+                    <Select value={assignSectionKey} onValueChange={setAssignSectionKey}>
+                      <SelectTrigger id="assign-section">
+                        <SelectValue placeholder="Select a day or group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mapSectionOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={handleAssignLocationToSection}
+                      disabled={!assignLocationId || !assignSectionKey || !canEdit}
+                    >
+                      Move to itinerary
+                    </Button>
+                    <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <p className="mt-1 text-xs text-muted-foreground">
               Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {trip.destination ? <span>{trip.destination}</span> : <span>No destination</span>}
               {tripStart && tripEnd ? (
                 <span>
@@ -1070,19 +1814,36 @@ const TripPage = () => {
               {tripDuration ? <span>· {tripDuration} days</span> : null}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {trip.inviteToken && (role === "owner" || role === "editor") ? (
               <ShareDialog inviteToken={trip.inviteToken} />
             ) : null}
             {isOwner ? (
-              <Button variant="outline" onClick={handleDeleteTrip}>
+              <Button variant="outline" size="sm" onClick={handleDeleteTrip}>
                 Delete trip
               </Button>
             ) : null}
           </div>
         </div>
       </Card>
+    );
+  }, [handleDeleteTrip, isOwner, role, trip, tripDuration, tripEnd, tripStart]);
 
+  useEffect(() => {
+    setHeaderContent(headerContent);
+    return () => setHeaderContent(null);
+  }, [headerContent, setHeaderContent]);
+
+  if (!tripId) {
+    return <p className="text-sm text-muted-foreground">Missing trip id.</p>;
+  }
+
+  if (!trip) {
+    return <p className="text-sm text-muted-foreground">Loading trip details...</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <TabButton label="Itinerary" active={activeTab === "itinerary"} onClick={() => setActiveTab("itinerary")} />
         <TabButton label="Bookings" active={activeTab === "bookings"} onClick={() => setActiveTab("bookings")} />
@@ -1230,6 +1991,8 @@ const TripPage = () => {
                 sortableEntryIds={sortableEntryIds}
                 dayByKey={dayByKey}
                 canEdit={canEdit}
+                externalEditItemId={mapEditItemId}
+                onExternalEditHandled={() => setMapEditItemId(null)}
                 onAddItem={handleAddItem}
                 onAddUnscheduledItem={handleAddUnscheduledItem}
                 onUpdateItemEntry={handleUpdateItem}
@@ -1253,74 +2016,436 @@ const TripPage = () => {
       ) : null}
 
       {activeTab === "map" ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr]">
-          <Card className="flex flex-col gap-4 p-5">
+        <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr] lg:items-stretch">
+          <Card className="flex max-h-[calc(100vh-220px)] flex-col gap-4 overflow-hidden py-5 pl-5">
             <div>
               <h3 className="text-lg font-semibold">Locations</h3>
               <p className="text-sm text-muted-foreground">Click the map to add a location.</p>
             </div>
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-3">
+                <Label>Filter itinerary by day or group</Label>
+                {mapSectionOptions.length ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMapFilterTouched(true);
+                          setMapFilterSelections(mapSectionKeys);
+                        }}
+                      >
+                        Show all
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMapFilterTouched(true);
+                          setMapFilterSelections([]);
+                        }}
+                      >
+                        Hide all
+                      </Button>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={showSavedLocations}
+                        onChange={(event) => setShowSavedLocations(event.target.checked)}
+                      />
+                      <span>Saved locations</span>
+                    </label>
+                    {mapSectionOptions.map((option) => (
+                      <label key={option.value} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={mapFilterSelections.includes(option.value)}
+                          onChange={(event) => {
+                            setMapFilterTouched(true);
+                            setMapFilterSelections((prev) => {
+                              if (event.target.checked) {
+                                return Array.from(new Set([...prev, option.value]));
+                              }
+                              return prev.filter((value) => value !== option.value);
+                            });
+                          }}
+                        />
+                        <span>{option.label}</span>
+                        <input
+                          type="color"
+                          value={
+                            option.value.startsWith("unscheduled:")
+                              ? groupColorById.get(option.value.replace("unscheduled:", "")) ?? "#7c3aed"
+                              : dayColorByKey.get(option.value) ?? "#2563eb"
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            event.stopPropagation();
+                            if (!canEdit) {
+                              return;
+                            }
+                            const nextColor = event.target.value;
+                            if (option.value.startsWith("unscheduled:")) {
+                              updateUnscheduledGroup(tripId!, option.value.replace("unscheduled:", ""), {
+                                color: nextColor
+                              });
+                            } else {
+                              const day = dayByKey.get(option.value);
+                              if (day) {
+                                updateDay(tripId!, day.id, { color: nextColor });
+                              }
+                            }
+                          }}
+                          className="h-5 w-5 cursor-pointer rounded-full border"
+                          title="Pick color"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No days or groups yet.</p>
+                )}
+              </div>
 
-            {pending ? (
-              <Card className="bg-slate-50 p-4">
-                <h4 className="text-base font-semibold">Selected spot</h4>
-                <p className="text-sm text-muted-foreground">
-                  {pending.lat.toFixed(4)}, {pending.lng.toFixed(4)}
-                </p>
-                <div className="mt-3 flex flex-col gap-3">
-                  <Input
-                    type="text"
-                    placeholder="Location name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                  <Textarea
-                    placeholder="Notes for the group"
-                    rows={3}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button onClick={handleSaveLocation} disabled={!canEdit || saving}>
-                      {saving ? "Saving..." : "Add to trip"}
-                    </Button>
-                    <Button variant="outline" onClick={() => setPending(null)}>
-                      Cancel
-                    </Button>
+              {showSavedLocations ? (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-semibold">Saved locations</h4>
+                  <div className="mt-3 flex flex-col gap-3">
+                    {locations.filter((location) => !itineraryItems.some((item) => item.locationId === location.id)).length ? (
+                      locations
+                        .filter((location) => !itineraryItems.some((item) => item.locationId === location.id))
+                        .map((location) => (
+                        <div
+                          key={location.id}
+                          className={`ml-1 relative cursor-pointer rounded-md border p-3 ${
+                            selectedSavedLocationId === location.id ? "ring-2 ring-primary/40" : ""
+                          }`}
+                          onClick={() => handleSelectSavedLocation(location)}
+                        >
+                          <div className="pr-10">
+                            <strong className="text-sm font-semibold">{location.name}</strong>
+                          </div>
+                          {canEdit ? (
+                            <div className="absolute right-2 top-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenLocationMenuId((prev) =>
+                                    prev === location.id ? null : location.id
+                                  );
+                                }}
+                              >
+                                ⋯
+                              </Button>
+                              {openLocationMenuId === location.id ? (
+                                <div
+                                  ref={locationMenuRef}
+                                  className="absolute right-0 top-full z-10 mt-2 w-40 rounded-md border bg-white shadow"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                    onClick={() => {
+                                      setOpenLocationMenuId(null);
+                                      handleOpenAssignDialog(location);
+                                    }}
+                                  >
+                                    Move to day/group
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                    onClick={() => {
+                                      setOpenLocationMenuId(null);
+                                      handleStartLocationEdit(location);
+                                    }}
+                                    disabled={editingLocationId === location.id}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-slate-100"
+                                    onClick={() => {
+                                      setOpenLocationMenuId(null);
+                                      handleDeleteLocation(location);
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {editingLocationId === location.id ? (
+                            <div className="mt-3 flex flex-col gap-3">
+                              <Input
+                                type="text"
+                                value={editingLocationName}
+                                onChange={(event) => setEditingLocationName(event.target.value)}
+                                placeholder="Location name"
+                              />
+                              <Input
+                                type="text"
+                                value={editingLocationAddress}
+                                onChange={(event) => setEditingLocationAddress(event.target.value)}
+                                placeholder="Address"
+                              />
+                              <Textarea
+                                rows={3}
+                                value={editingLocationNote}
+                                onChange={(event) => setEditingLocationNote(event.target.value)}
+                                placeholder="Notes"
+                              />
+                              <div className="flex flex-wrap items-center gap-3">
+                                <Button
+                                  onClick={handleSaveLocationEdit}
+                                  disabled={savingLocationEdit || !editingLocationName.trim()}
+                                >
+                                  {savingLocationEdit ? "Saving..." : "Save"}
+                                </Button>
+                                <Button variant="outline" onClick={handleCancelLocationEdit}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {location.note ? (
+                                <p className="mt-2 text-sm text-muted-foreground">{location.note}</p>
+                              ) : null}
+                              {location.address ? (
+                                <p className="text-sm text-muted-foreground">{location.address}</p>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                        ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">All saved locations are assigned.</p>
+                    )}
                   </div>
                 </div>
-              </Card>
-            ) : (
-              <p className="text-sm text-muted-foreground">Select a spot on the map to add it here.</p>
-            )}
+              ) : null}
 
-            <div className="flex flex-col gap-3">
-              {locations.map((location) => (
-                <Card key={location.id} className="p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong className="text-sm font-semibold">{location.name}</strong>
-                    <Badge variant="outline">
-                      {location.lat.toFixed(3)}, {location.lng.toFixed(3)}
-                    </Badge>
+              {pending ? (
+                <Card className="bg-slate-50 p-4">
+                  <h4 className="text-base font-semibold">Selected spot</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {pending.lat.toFixed(4)}, {pending.lng.toFixed(4)}
+                  </p>
+                  <div className="mt-3 flex flex-col gap-3">
+                    <Input
+                      type="text"
+                      placeholder="Location name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                    />
+                    <Textarea
+                      placeholder="Notes for the group"
+                      rows={3}
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button onClick={handleSaveLocation} disabled={!canEdit || saving}>
+                        {saving ? "Saving..." : "Add to trip"}
+                      </Button>
+                      <Button variant="outline" onClick={() => setPending(null)}>
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                  {location.note ? (
-                    <p className="mt-2 text-sm text-muted-foreground">{location.note}</p>
-                  ) : null}
-                  {location.address ? (
-                    <p className="text-sm text-muted-foreground">{location.address}</p>
-                  ) : null}
                 </Card>
-              ))}
-            </div>
-          </Card>
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a spot on the map to add it here.</p>
+              )}
 
-          <MapPanel
-            locations={locations}
-            onSelect={setPending}
-            canEdit={canEdit}
-            destination={trip.destination}
-            destinationPlaceId={trip.destinationPlaceId}
-            onDestinationPlaceId={handleDestinationPlaceId}
-          />
+              <DndContext
+                onDragStart={(event) => {
+                  const id = String(event.active.id);
+                  if (id.startsWith("map-item:")) {
+                    setActiveMapDragId(id.replace("map-item:", ""));
+                  }
+                }}
+                onDragEnd={(event) => {
+                  handleMapDragEnd(event);
+                  setActiveMapDragId(null);
+                }}
+                onDragCancel={() => setActiveMapDragId(null)}
+                collisionDetection={mapCollisionDetection}
+              >
+                {mapSelectedItemsBySection.size ? (
+                  <SortableContext items={mapSortableIds} strategy={verticalListSortingStrategy}>
+                    <div className="flex flex-col gap-3">
+                      {mapFlatList.map((entry) => {
+                        if (entry.type === "header") {
+                          return (
+                            <MapHeader key={entry.sectionKey} id={`map-header:${entry.sectionKey}`}>
+                              <h4 className="text-sm font-semibold">{resolveSectionLabel(entry.sectionKey)}</h4>
+                            </MapHeader>
+                          );
+                        }
+
+                        const item = entry.item;
+                        if (!item.locationId) {
+                          return null;
+                        }
+                        const location = locationById.get(item.locationId);
+                        if (!location) {
+                          return null;
+                        }
+                        const sectionItems = mapSelectedItemsBySection.get(entry.sectionKey) ?? [];
+                        const currentIndex = sectionItems.findIndex((sectionItem) => sectionItem.id === item.id);
+                        const nextItem = currentIndex >= 0 ? sectionItems[currentIndex + 1] : undefined;
+                        const nextLocation = nextItem?.locationId
+                          ? locationById.get(nextItem.locationId)
+                          : undefined;
+
+                        return (
+                          <MapSortableItem key={item.id} id={`map-item:${item.id}`}>
+                            {(dragHandleProps) => {
+                              const dragProps = dragHandleProps as Record<string, unknown>;
+                              const handleDragClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation();
+                                const onClick = dragProps.onClick as ((evt: ReactMouseEvent<HTMLButtonElement>) => void) | undefined;
+                                onClick?.(event);
+                              };
+                              const { onClick: _ignored, ...restDragProps } = dragProps as { onClick?: unknown };
+                              return (
+                              <div className="flex flex-col gap-2">
+                                <Card
+                                  className={`ml-1 relative cursor-pointer p-3 ${
+                                    selectedMapItemId === item.id ? "ring-2 ring-primary/40" : ""
+                                  }`}
+                                  onClick={() => {
+                                    if (location) {
+                                      setSelectedSavedLocationId(location.id);
+                                      setPending(null);
+                                    }
+                                  }}
+                                >
+                                  <div className="flex flex-wrap items-center gap-2 pr-16">
+                                    <strong className="text-sm font-semibold">{item.title}</strong>
+                                    <Badge variant="outline">{item.type}</Badge>
+                                  </div>
+                                  {canEdit ? (
+                                    <div className="absolute right-2 top-2 flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setOpenMapItemMenuId((prev) =>
+                                            prev === item.id ? null : item.id
+                                          );
+                                        }}
+                                      >
+                                        ⋯
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        {...(restDragProps as Record<string, unknown>)}
+                                        onClick={handleDragClick}
+                                      >
+                                        ⠿
+                                      </Button>
+                                      {openMapItemMenuId === item.id ? (
+                                        <div
+                                          ref={mapItemMenuRef}
+                                          className="absolute right-0 top-full z-10 mt-2 w-28 rounded-md border bg-white shadow"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <button
+                                            type="button"
+                                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                            onClick={() => handleEditMapItem(item)}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-slate-100"
+                                            onClick={() => handleDeleteMapItem(item)}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                  <p className="mt-2 text-sm text-muted-foreground">{location.name}</p>
+                                  {location.address ? (
+                                    <p className="text-sm text-muted-foreground">{location.address}</p>
+                                  ) : null}
+                                </Card>
+                                {nextLocation ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenRoute(location, nextLocation)}
+                                  >
+                                    Route to next location
+                                  </Button>
+                                ) : null}
+                              </div>
+                            );
+                            }}
+                          </MapSortableItem>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Select at least one day or group.</p>
+                )}
+                <DragOverlay>
+                  {activeMapDragId ? (() => {
+                    const item = itineraryItems.find((entry) => entry.id === activeMapDragId);
+                    const location = item?.locationId ? locationById.get(item.locationId) : undefined;
+                    if (!item || !location) {
+                      return null;
+                    }
+                    return (
+                      <div className="flex w-full flex-col gap-2">
+                        <Card className="p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-semibold">{item.title}</strong>
+                            <Badge variant="outline">{item.type}</Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">{location.name}</p>
+                          {location.address ? (
+                            <p className="text-sm text-muted-foreground">{location.address}</p>
+                          ) : null}
+                        </Card>
+                      </div>
+                    );
+                  })() : null}
+                </DragOverlay>
+              </DndContext>
+            </div>
+
+          </Card>
+          <div className="h-[calc(100vh-220px)]">
+            <MapPanel
+              markers={mapMarkers}
+              onSelect={setPending}
+              canEdit={canEdit}
+              selectedLocation={selectedLocationForMap}
+              onClearSelected={() => {
+                setPending(null);
+                setSelectedSavedLocationId(null);
+              }}
+              destination={trip.destination}
+              destinationPlaceId={trip.destinationPlaceId}
+              onDestinationPlaceId={handleDestinationPlaceId}
+            />
+          </div>
         </div>
       ) : null}
 
