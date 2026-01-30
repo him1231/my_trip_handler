@@ -12,6 +12,7 @@ export type Trip = {
   description?: string;
   destination?: string;
   destinationPlaceId?: string;
+  coverImageUrl?: string;
   startDate?: Date;
   endDate?: Date;
   timezone?: string;

@@ -41,6 +41,7 @@ const mapTrip = (id: string, data: any): Trip => ({
   description: data.description,
   destination: data.destination,
   destinationPlaceId: data.destinationPlaceId,
+  coverImageUrl: data.coverImageUrl ?? undefined,
   startDate: data.startDate?.toDate?.() ?? undefined,
   endDate: data.endDate?.toDate?.() ?? undefined,
   timezone: data.timezone,
@@ -656,6 +657,23 @@ export const deleteTrip = async (tripId: string) => {
 export const updateTripDestinationPlaceId = async (tripId: string, placeId: string) => {
   await updateDoc(doc(tripsCollection, tripId), {
     destinationPlaceId: placeId,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const updateTripCoverImageUrl = async (tripId: string, coverImageUrl: string | null) => {
+  await updateDoc(doc(tripsCollection, tripId), {
+    coverImageUrl: coverImageUrl ?? null,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const updateTripDetails = async (
+  tripId: string,
+  payload: Partial<Pick<Trip, "title" | "description" | "destination" | "startDate" | "endDate" | "timezone">>
+) => {
+  await updateDoc(doc(tripsCollection, tripId), {
+    ...removeUndefined(payload),
     updatedAt: serverTimestamp()
   });
 };

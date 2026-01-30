@@ -27,6 +27,7 @@ import ItineraryTimeline from "../components/ItineraryTimeline";
 import MapPanel from "../components/MapPanel";
 import TabButton from "../components/TabButton";
 import TripBookingsTab from "../components/TripBookingsTab";
+import TripInfoPanel, { type TripInfoStat, type TripInfoTimelineGroup } from "../components/TripInfoPanel";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -68,6 +69,8 @@ import {
   subscribeLocations,
   subscribeTrip,
   updateLocation,
+  updateTripCoverImageUrl,
+  updateTripDetails,
   updateTripDestinationPlaceId,
   updateDay,
   updateBooking,
@@ -156,7 +159,7 @@ const TripPage = () => {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [openUnscheduledMenuId, setOpenUnscheduledMenuId] = useState<string | null>(null);
   const unscheduledMenuRef = useRef<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal">("itinerary");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "bookings" | "map" | "expenses" | "journal" | "info">("itinerary");
   const [mapFilterSelections, setMapFilterSelections] = useState<string[]>([]);
   const [mapFilterTouched, setMapFilterTouched] = useState(false);
   const [showSavedLocations, setShowSavedLocations] = useState(true);
@@ -601,6 +604,64 @@ const TripPage = () => {
     });
     return counts;
   }, [timelineEntries]);
+
+  const unscheduledItemCount = useMemo(
+    () => timelineEntries.reduce((total, entry) => (isUnscheduledSectionKey(entry.dayKey) ? total + 1 : total), 0),
+    [isUnscheduledSectionKey, timelineEntries]
+  );
+
+  const tripStats = useMemo<TripInfoStat[]>(
+    () => [
+      { label: "Items", value: itineraryItems.length },
+      { label: "Bookings", value: bookings.length },
+      { label: "Locations", value: locations.length },
+      { label: "Days", value: days.length },
+      { label: "Unscheduled items", value: unscheduledItemCount },
+      { label: "Unscheduled groups", value: unscheduledGroups.length }
+    ],
+    [bookings.length, days.length, itineraryItems.length, locations.length, unscheduledGroups.length, unscheduledItemCount]
+  );
+
+  const timelineGroups = useMemo<TripInfoTimelineGroup[]>(() => {
+    const groups: TripInfoTimelineGroup[] = [];
+    const formatEntry = (entry: TimelineContentEntry) => {
+      const time = entry.kind === "booking" ? entry.booking.startTime : entry.item.startTime;
+      const dateValue = entry.kind === "booking" ? entry.booking.date : entry.item.date;
+      const timeValue = (time ?? dateValue)?.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const typeLabel = entry.kind === "booking" ? entry.booking.type : entry.item.type;
+      return {
+        id: entry.entryId,
+        title: entry.kind === "booking" ? entry.booking.title : entry.item.title,
+        meta: [typeLabel, timeValue].filter(Boolean).join(" · ")
+      };
+    };
+
+    days.forEach((day) => {
+      const dayKey = toDayKey(day.date);
+      const entries = entriesBySection.get(dayKey) ?? [];
+      groups.push({
+        id: dayKey,
+        label: `Day ${day.dayNumber} · ${day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
+        entries: entries.map(formatEntry)
+      });
+    });
+
+    unscheduledGroups.forEach((group) => {
+      const sectionKey = buildSectionKey(group.id);
+      const entries = entriesBySection.get(sectionKey) ?? [];
+      groups.push({
+        id: sectionKey,
+        label: group.title,
+        entries: entries.map(formatEntry),
+        isUnscheduled: true
+      });
+    });
+
+    return groups;
+  }, [buildSectionKey, days, entriesBySection, toDayKey, unscheduledGroups]);
 
   const locationById = useMemo(() => {
     const map = new Map<string, TripLocation>();
@@ -1749,6 +1810,36 @@ const TripPage = () => {
     [canEdit, trip?.destinationPlaceId, tripId]
   );
 
+  const handleCoverImageUpdate = useCallback(
+    async (nextUrl: string | null) => {
+      if (!tripId || !canEdit) {
+        return;
+      }
+      if (nextUrl === (trip?.coverImageUrl ?? null)) {
+        return;
+      }
+      await updateTripCoverImageUrl(tripId, nextUrl);
+    },
+    [canEdit, trip?.coverImageUrl, tripId]
+  );
+
+  const handleTripDetailsUpdate = useCallback(
+    async (payload: {
+      title: string;
+      description?: string | null;
+      destination?: string | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+      timezone?: string | null;
+    }) => {
+      if (!tripId || !canEdit) {
+        return;
+      }
+      await updateTripDetails(tripId, payload);
+    },
+    [canEdit, tripId]
+  );
+
   const tripStart = trip?.startDate ? new Date(trip.startDate) : null;
   const tripEnd = trip?.endDate ? new Date(trip.endDate) : null;
   const tripDuration =
@@ -1801,18 +1892,6 @@ const TripPage = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Role: {role ?? "unknown"} · Members: {trip.memberIds.length}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {trip.destination ? <span>{trip.destination}</span> : <span>No destination</span>}
-              {tripStart && tripEnd ? (
-                <span>
-                  · {tripStart.toLocaleDateString()} → {tripEnd.toLocaleDateString()}
-                </span>
-              ) : null}
-              {tripDuration ? <span>· {tripDuration} days</span> : null}
-            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {trip.inviteToken && (role === "owner" || role === "editor") ? (
@@ -1827,7 +1906,19 @@ const TripPage = () => {
         </div>
       </Card>
     );
-  }, [handleDeleteTrip, isOwner, role, trip, tripDuration, tripEnd, tripStart]);
+  }, [
+    canEdit,
+    handleCoverImageUpdate,
+    handleDeleteTrip,
+    isOwner,
+    role,
+    timelineGroups,
+    trip,
+    tripDuration,
+    tripEnd,
+    tripStart,
+    tripStats
+  ]);
 
   useEffect(() => {
     setHeaderContent(headerContent);
@@ -1845,12 +1936,28 @@ const TripPage = () => {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
+        <TabButton label="Trip info" active={activeTab === "info"} onClick={() => setActiveTab("info")} />
         <TabButton label="Itinerary" active={activeTab === "itinerary"} onClick={() => setActiveTab("itinerary")} />
         <TabButton label="Bookings" active={activeTab === "bookings"} onClick={() => setActiveTab("bookings")} />
         <TabButton label="Map" active={activeTab === "map"} onClick={() => setActiveTab("map")} />
         <TabButton label="Expenses" active={activeTab === "expenses"} onClick={() => setActiveTab("expenses")} />
         <TabButton label="Journal" active={activeTab === "journal"} onClick={() => setActiveTab("journal")} />
       </div>
+
+      {activeTab === "info" ? (
+        <TripInfoPanel
+          trip={trip}
+          role={role}
+          canEdit={canEdit}
+          tripStart={tripStart}
+          tripEnd={tripEnd}
+          tripDuration={tripDuration}
+          stats={tripStats}
+          timelineGroups={timelineGroups}
+          onSaveCoverImage={handleCoverImageUpdate}
+          onSaveTripDetails={handleTripDetailsUpdate}
+        />
+      ) : null}
 
       {activeTab === "itinerary" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(320px,360px)_1fr]">
